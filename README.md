@@ -29,3 +29,23 @@ The database foundation is implemented in PostgreSQL migration files.
 2. Add authentication and authorization middleware.
 3. Implement page designs you provide.
 4. Integrate your real APIs and end-to-end booking flow.
+=======
+Frontend starter configured with:
+
+- Vite
+- React
+- Tailwind CSS
+
+## Getting started
+
+```bash
+npm install
+npm run dev
+```
+
+## Build for production
+
+```bash
+npm run build
+npm run preview
+```
