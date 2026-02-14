@@ -1,0 +1,33 @@
+{
+  "name": "telemedicine-app",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Telemedicine app frontend powered by Vite and Tailwind CSS",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/fistonfle/telemedicine-app.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/fistonfle/telemedicine-app/issues"
+  },
+  "homepage": "https://github.com/fistonfle/telemedicine-app#readme",
+  "dependencies": {
+    "react": "^19.2.4",
+    "react-dom": "^19.2.4"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "^4.1.18",
+    "@vitejs/plugin-react": "^5.1.4",
+    "tailwindcss": "^4.1.18",
+    "vite": "^7.3.1"
+  }
+}
