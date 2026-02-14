@@ -19,7 +19,7 @@ function SignUp() {
     try {
       const name = (form.name?.value || "").trim().split(/\s+/);
       const firstName = name[0] || "";
-      const lastName = name.slice(1).join(" ") || "";
+      const lastName = name.slice(1).join(" ").trim() || firstName;
       const data = {
         email: form.email?.value?.trim(),
         password: form.password?.value,

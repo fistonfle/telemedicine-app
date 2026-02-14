@@ -56,11 +56,13 @@ function DoctorRegistration() {
             try {
               const form = e.target;
               const name = (form.full_name?.value || "").trim().split(/\s+/);
+              const firstName = name[0] || "";
+              const lastName = name.slice(1).join(" ").trim() || firstName;
               await signup({
                 email: (form.email?.value || "").trim(),
                 password: form.password?.value || "",
-                firstName: name[0] || "",
-                lastName: name.slice(1).join(" ") || "",
+                firstName,
+                lastName,
                 role: "doctor",
                 specialty: form.specialty?.value || null,
                 licenseNumber: form.license_number?.value || null,
