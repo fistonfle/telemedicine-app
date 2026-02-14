@@ -1,0 +1,7 @@
+services:
+  - type: web
+    name: telemedicine-app
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    plan: free
