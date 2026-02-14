@@ -1,94 +1,74 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import SelectDoctor from "../components/booking/SelectDoctor";
 import SelectDateTime from "../components/booking/SelectDateTime";
 import ConfirmBooking from "../components/booking/ConfirmBooking";
+import { getDoctors, getTimeSlots, createAppointment } from "../api/services";
 
 const STEPS = [
   { id: 1, label: "Select Doctor" },
-  { id: 2, label: "Choose Time" },
+  { id: 2, label: "Choose Slot" },
   { id: 3, label: "Confirm Booking" },
-];
-
-const MOCK_DOCTORS = [
-  {
-    id: 1,
-    name: "Dr. Sarah Jenkins",
-    specialty: "Cardiology Specialist",
-    rating: 4.8,
-    reviews: 120,
-    description: "Expert in cardiovascular health with over 12 years of experience.",
-    nextSession: "Today, 10:00 AM",
-    avatar: "SJ",
-  },
-  {
-    id: 2,
-    name: "Dr. James Wilson",
-    specialty: "Cardiologist",
-    rating: 4.9,
-    reviews: 1024,
-    experience: "14 years",
-    description: "Specialized in heart conditions and preventive care.",
-    avatar: "JW",
-  },
-  {
-    id: 3,
-    name: "Dr. Marcus Chan",
-    specialty: "General Practitioner",
-    rating: 4.7,
-    reviews: 89,
-    description: "Comprehensive primary care and general health consultations.",
-    nextSession: "Tomorrow, 02:00 PM",
-    avatar: "MC",
-  },
-  {
-    id: 4,
-    name: "Dr. Robert Fox",
-    specialty: "Pediatrician",
-    rating: 4.9,
-    reviews: 156,
-    description: "Pediatric care specialist focusing on children's health.",
-    nextSession: "Today, 03:30 PM",
-    avatar: "RF",
-  },
-];
-
-const MOCK_SLOTS = [
-  "09:00 AM",
-  "09:30 AM",
-  "10:00 AM",
-  "10:30 AM",
-  "11:00 AM",
-  "11:30 AM",
-  "01:00 PM",
-  "02:00 PM",
-  "03:00 PM",
-  "04:00 PM",
 ];
 
 function BookAppointment() {
   const [step, setStep] = useState(1);
   const [selectedDoctor, setSelectedDoctor] = useState(null);
   const [selectedDate, setSelectedDate] = useState(null);
-  const [selectedTime, setSelectedTime] = useState(null);
+  const [selectedSlot, setSelectedSlot] = useState(null);
   const [reasonForVisit, setReasonForVisit] = useState("");
   const [specialtyFilter, setSpecialtyFilter] = useState("all");
+  const [doctors, setDoctors] = useState([]);
+  const [slots, setSlots] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
   const navigate = useNavigate();
+
+  useEffect(() => {
+    getDoctors(specialtyFilter).then(setDoctors).finally(() => setLoading(false));
+  }, [specialtyFilter]);
+
+  useEffect(() => {
+    if (selectedDoctor && selectedDate) {
+      setLoading(true);
+      getTimeSlots(selectedDoctor.id, selectedDate).then(setSlots).finally(() => setLoading(false));
+    } else if (selectedDoctor && !selectedDate) {
+      setSlots([]);
+    }
+  }, [selectedDoctor, selectedDate]);
 
   const handleSelectDoctor = (doctor) => {
     setSelectedDoctor(doctor);
+    setSelectedDate(new Date());
     setStep(2);
   };
 
-  const handleSelectDateTime = (date, time) => {
+  const handleSelectDateTime = (date, slot) => {
     setSelectedDate(date);
-    setSelectedTime(time);
+    setSelectedSlot(slot);
     setStep(3);
   };
 
-  const handleConfirm = () => {
-    // TODO: API call to create appointment
-    navigate("/patient");
+  const handleDateChange = (date) => {
+    setSelectedDate(date);
+  };
+
+  const handleConfirm = async () => {
+    setSubmitting(true);
+    try {
+      await createAppointment({
+        doctorId: selectedDoctor?.id,
+        doctor: selectedDoctor,
+        date: selectedDate,
+        slot: selectedSlot,
+        reasonForVisit,
+      });
+      navigate("/patient");
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
@@ -130,7 +110,8 @@ function BookAppointment() {
 
       {step === 1 && (
         <SelectDoctor
-          doctors={MOCK_DOCTORS}
+          doctors={doctors}
+          loading={loading}
           onSelect={handleSelectDoctor}
           specialtyFilter={specialtyFilter}
           onFilterChange={setSpecialtyFilter}
@@ -140,21 +121,25 @@ function BookAppointment() {
       {step === 2 && selectedDoctor && (
         <SelectDateTime
           doctor={selectedDoctor}
-          slots={MOCK_SLOTS}
+          slots={slots}
+          loading={loading}
+          selectedDate={selectedDate}
+          onDateChange={handleDateChange}
           onSelect={handleSelectDateTime}
           onBack={() => setStep(1)}
         />
       )}
 
-      {step === 3 && selectedDoctor && selectedDate && selectedTime && (
+      {step === 3 && selectedDoctor && selectedDate && selectedSlot && (
         <ConfirmBooking
           doctor={selectedDoctor}
           date={selectedDate}
-          time={selectedTime}
+          slot={selectedSlot}
           reasonForVisit={reasonForVisit}
           onReasonChange={setReasonForVisit}
           onConfirm={handleConfirm}
           onBack={() => setStep(2)}
+          submitting={submitting}
         />
       )}
     </div>

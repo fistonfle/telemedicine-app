@@ -1,42 +1,49 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Badge from "../components/Badge";
-
-const MOCK_PRESCRIPTIONS = [
-  {
-    id: 1,
-    medication: "Amoxicillin",
-    expires: "10 Jan 2024",
-    dosage: "500 mg",
-    frequency: "Twice daily, with food",
-    doctor: "Dr. Sarah Smith",
-    status: "ready-for-refill",
-    action: "refill",
-  },
-  {
-    id: 2,
-    medication: "Lisinopril",
-    expires: "10 Jan 2024",
-    dosage: "10 mg",
-    frequency: "Once daily, morning",
-    doctor: "Dr. James Wilson",
-    status: "processing",
-    action: "refill",
-  },
-  {
-    id: 3,
-    medication: "Metformin",
-    expires: "2024",
-    dosage: "850 mg",
-    frequency: "Twice daily",
-    doctor: "Dr. Sarah Smith",
-    status: "unavailable",
-    action: "contact",
-  },
-];
+import { getPrescriptions } from "../api/services";
 
 function Prescriptions() {
   const [searchQuery, setSearchQuery] = useState("");
   const [activeTab, setActiveTab] = useState("active");
+  const [prescriptions, setPrescriptions] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    getPrescriptions()
+      .then(setPrescriptions)
+      .catch((err) => setError(err.message))
+      .finally(() => setLoading(false));
+  }, []);
+
+  const filtered = prescriptions.filter(
+    (p) =>
+      !searchQuery ||
+      p.medication.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      p.doctor.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
+  if (loading) {
+    return (
+      <div className="p-8 flex items-center justify-center min-h-[400px]">
+        <div className="flex flex-col items-center gap-4">
+          <div className="w-12 h-12 border-4 border-primary border-t-transparent rounded-full animate-spin" />
+          <p className="text-slate-500">Loading prescriptions...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="p-8">
+        <div className="bg-red-50 border border-red-200 rounded-xl p-6 text-red-700">
+          <p className="font-semibold">Error loading prescriptions</p>
+          <p className="text-sm mt-1">{error}</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="p-8">
@@ -117,13 +124,10 @@ function Prescriptions() {
                 <th className="text-left py-4 px-6 text-xs font-semibold text-slate-500 uppercase tracking-wider">
                   Status
                 </th>
-                <th className="text-right py-4 px-6 text-xs font-semibold text-slate-500 uppercase tracking-wider">
-                  Actions
-                </th>
               </tr>
             </thead>
             <tbody>
-              {MOCK_PRESCRIPTIONS.map((rx) => (
+              {(activeTab === "active" ? filtered : filtered).map((rx) => (
                 <tr
                   key={rx.id}
                   className="border-b border-slate-100 hover:bg-slate-50/50"
@@ -158,22 +162,13 @@ function Prescriptions() {
                     </div>
                   </td>
                   <td className="py-4 px-6">
-                    <Badge variant={rx.status}>
-                      {rx.status === "ready-for-refill"
+                    <Badge variant={rx.status === "ready" ? "approved" : rx.status === "processing" ? "pending" : "completed"}>
+                      {rx.status === "ready"
                         ? "Ready for Refill"
-                        : rx.status.charAt(0).toUpperCase() + rx.status.slice(1)}
+                        : rx.status === "processing"
+                        ? "Processing"
+                        : "Out of refills"}
                     </Badge>
-                  </td>
-                  <td className="py-4 px-6 text-right">
-                    {rx.action === "refill" ? (
-                      <button className="px-4 py-2 bg-primary text-white text-sm font-medium rounded-lg hover:bg-primary/90">
-                        Request Refill
-                      </button>
-                    ) : (
-                      <button className="px-4 py-2 border border-slate-200 text-slate-600 text-sm font-medium rounded-lg hover:bg-slate-50">
-                        Contact Doctor
-                      </button>
-                    )}
                   </td>
                 </tr>
               ))}
@@ -188,8 +183,8 @@ function Prescriptions() {
           {
             icon: "local_pharmacy",
             title: "Preferred Pharmacy",
-            content: "CVS Pharmacy - 123 Health Ave, Metro City",
-            action: "Change Pharmacy",
+            content: "Add your preferred pharmacy in profile settings.",
+            action: "Set Pharmacy",
           },
           {
             icon: "health_and_safety",
@@ -203,7 +198,7 @@ function Prescriptions() {
             title: "Refill Reminders",
             content:
               "Enable notifications to receive timely refill reminders.",
-            action: "Enable Now",
+            action: "Enable",
           },
         ].map((card) => (
           <div

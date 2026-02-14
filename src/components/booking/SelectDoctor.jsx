@@ -1,11 +1,21 @@
 import { useState } from "react";
 
-const SPECIALTIES = ["All Doctors", "Cardiology", "General Practice", "Dermatology", "Psychiatry"];
+const SPECIALTIES = [
+  "All Doctors",
+  "General Practice",
+  "Cardiology",
+  "Dermatology",
+  "Psychiatry",
+  "Pediatrics",
+  "Neurology",
+  "General Surgery",
+  "Orthopedic Surgery",
+];
 
-function SelectDoctor({ doctors, onSelect, specialtyFilter, onFilterChange }) {
+function SelectDoctor({ doctors, loading, onSelect, specialtyFilter, onFilterChange }) {
   const [searchQuery, setSearchQuery] = useState("");
 
-  const filteredDoctors = doctors.filter((doc) => {
+  const filteredDoctors = (doctors ?? []).filter((doc) => {
     const matchesSearch =
       doc.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       doc.specialty.toLowerCase().includes(searchQuery.toLowerCase());
@@ -63,6 +73,11 @@ function SelectDoctor({ doctors, onSelect, specialtyFilter, onFilterChange }) {
       </div>
 
       {/* Doctor Grid */}
+      {loading ? (
+        <div className="flex justify-center py-12">
+          <div className="w-12 h-12 border-4 border-primary border-t-transparent rounded-full animate-spin" />
+        </div>
+      ) : (
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {filteredDoctors.map((doctor) => (
           <div
@@ -76,15 +91,19 @@ function SelectDoctor({ doctors, onSelect, specialtyFilter, onFilterChange }) {
               <div className="flex-1 min-w-0">
                 <h3 className="font-bold text-slate-900 text-lg">{doctor.name}</h3>
                 <p className="text-slate-500 text-sm">{doctor.specialty}</p>
-                <div className="flex items-center gap-1 mt-2">
-                  <span className="material-icons text-amber-400 text-lg">star</span>
-                  <span className="font-medium text-slate-700">
-                    {doctor.rating} ({doctor.reviews} reviews)
-                  </span>
-                </div>
-                <p className="text-slate-500 text-sm mt-2 line-clamp-2">
-                  {doctor.description}
-                </p>
+                {(doctor.rating || doctor.reviews) && (
+                  <div className="flex items-center gap-1 mt-2">
+                    <span className="material-icons text-amber-400 text-lg">star</span>
+                    <span className="font-medium text-slate-700">
+                      {doctor.rating ?? "—"} ({doctor.reviews ?? 0} reviews)
+                    </span>
+                  </div>
+                )}
+                {doctor.description && (
+                  <p className="text-slate-500 text-sm mt-2 line-clamp-2">
+                    {doctor.description}
+                  </p>
+                )}
                 {doctor.nextSession && (
                   <p className="text-primary text-sm font-medium mt-2">
                     Next Session: {doctor.nextSession}
@@ -101,6 +120,7 @@ function SelectDoctor({ doctors, onSelect, specialtyFilter, onFilterChange }) {
           </div>
         ))}
       </div>
+      )}
 
       <div className="text-center mt-8">
         <button className="px-6 py-3 border border-slate-200 rounded-lg text-slate-600 font-medium hover:bg-slate-50">

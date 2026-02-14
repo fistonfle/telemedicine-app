@@ -1,48 +1,43 @@
-import { useState } from "react";
-
-const MOCK_PATIENTS = [
-  {
-    id: "AP-2034",
-    name: "Alex Johnson",
-    lastAppointment: "Oct 12, 2023",
-    lastDiagnosis: "Chronic Hypertension and slight heart rhythm irregularity.",
-    phone: "+1 555-0123",
-    email: "alex.j@email.com",
-  },
-  {
-    id: "AP-2035",
-    name: "Maria Garcia",
-    lastAppointment: "Oct 10, 2023",
-    lastDiagnosis: "Seasonal allergies - prescribed antihistamines.",
-    phone: "+1 555-0124",
-    email: "maria.g@email.com",
-  },
-  {
-    id: "AP-2036",
-    name: "James Wilson",
-    lastAppointment: "Oct 8, 2023",
-    lastDiagnosis: "Lower back pain - physical therapy recommended.",
-    phone: "+1 555-0125",
-    email: "james.w@email.com",
-  },
-  {
-    id: "AP-2037",
-    name: "Sarah Chen",
-    lastAppointment: "Oct 5, 2023",
-    lastDiagnosis: "Routine checkup - vitals within normal range.",
-    phone: "+1 555-0126",
-    email: "sarah.c@email.com",
-  },
-];
+import { useState, useEffect } from "react";
+import { getDoctorPatients } from "../api/services";
 
 function DoctorPatients() {
   const [searchQuery, setSearchQuery] = useState("");
+  const [patients, setPatients] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
-  const filteredPatients = MOCK_PATIENTS.filter(
-    (p) =>
-      p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      p.id.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  useEffect(() => {
+    setLoading(true);
+    getDoctorPatients(searchQuery)
+      .then(setPatients)
+      .catch((err) => setError(err.message))
+      .finally(() => setLoading(false));
+  }, [searchQuery]);
+
+  if (loading && !patients.length) {
+    return (
+      <div className="p-8 flex items-center justify-center min-h-[400px]">
+        <div className="flex flex-col items-center gap-4">
+          <div className="w-12 h-12 border-4 border-primary border-t-transparent rounded-full animate-spin" />
+          <p className="text-slate-500">Loading patients...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="p-8">
+        <div className="bg-red-50 border border-red-200 rounded-xl p-6 text-red-700">
+          <p className="font-semibold">Error loading patients</p>
+          <p className="text-sm mt-1">{error}</p>
+        </div>
+      </div>
+    );
+  }
+
+  const filteredPatients = patients;
 
   return (
     <div className="p-8">
@@ -62,10 +57,6 @@ function DoctorPatients() {
               className="pl-10 pr-4 py-2.5 border border-slate-200 rounded-lg w-64 focus:ring-2 focus:ring-primary focus:border-primary outline-none"
             />
           </div>
-          <button className="px-4 py-2.5 bg-primary text-white font-semibold rounded-lg hover:bg-primary/90 flex items-center gap-2">
-            <span className="material-icons text-lg">add</span>
-            New Patient
-          </button>
           <button className="p-2.5 rounded-lg hover:bg-slate-100">
             <span className="material-icons text-slate-600">notifications</span>
           </button>
@@ -89,9 +80,6 @@ function DoctorPatients() {
                 </th>
                 <th className="text-left py-4 px-6 text-xs font-semibold text-slate-500 uppercase tracking-wider">
                   Contact Info
-                </th>
-                <th className="text-right py-4 px-6 text-xs font-semibold text-slate-500 uppercase tracking-wider">
-                  Actions
                 </th>
               </tr>
             </thead>
@@ -125,34 +113,14 @@ function DoctorPatients() {
                       <p className="text-slate-500">{patient.email}</p>
                     </div>
                   </td>
-                  <td className="py-4 px-6 text-right">
-                    <button className="px-3 py-1.5 bg-primary text-white text-sm font-medium rounded-lg hover:bg-primary/90">
-                      View Medical History
-                    </button>
-                  </td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
 
-        {/* Pagination */}
-        <div className="px-6 py-4 border-t border-slate-100 flex items-center justify-between">
-          <p className="text-sm text-slate-500">Showing 1-4 of 4 patients</p>
-          <div className="flex items-center gap-2">
-            <button className="p-2 rounded-lg hover:bg-slate-100 disabled:opacity-50">
-              <span className="material-icons text-slate-600">chevron_left</span>
-            </button>
-            <span className="px-3 py-1 bg-primary text-white rounded-lg text-sm font-medium">
-              1
-            </span>
-            <button className="p-2 rounded-lg hover:bg-slate-100 text-slate-400">
-              2
-            </button>
-            <button className="p-2 rounded-lg hover:bg-slate-100">
-              <span className="material-icons text-slate-600">chevron_right</span>
-            </button>
-          </div>
+        <div className="px-6 py-4 border-t border-slate-100">
+          <p className="text-sm text-slate-500">Showing {filteredPatients.length} patients</p>
         </div>
       </div>
 

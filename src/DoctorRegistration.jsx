@@ -1,6 +1,13 @@
-import { Link } from "react-router-dom";
+import { useState } from "react";
+import { Link, useNavigate } from "react-router-dom";
+import { signup } from "./api/services";
+import { useToast } from "./components/Toast";
 
 function DoctorRegistration() {
+  const navigate = useNavigate();
+  const toast = useToast();
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
   return (
     <div className="bg-background-light dark:bg-background-dark font-display text-slate-800 dark:text-slate-100 min-h-screen flex flex-col">
       {/* Top Navigation / Progress */}
@@ -42,7 +49,38 @@ function DoctorRegistration() {
           </header>
 
           {/* Registration Form */}
-          <form action="#" className="space-y-6">
+          <form className="space-y-6" onSubmit={async (e) => {
+            e.preventDefault();
+            setError("");
+            setLoading(true);
+            try {
+              const form = e.target;
+              const name = (form.full_name?.value || "").trim().split(/\s+/);
+              await signup({
+                email: (form.email?.value || "").trim(),
+                password: form.password?.value || "",
+                firstName: name[0] || "",
+                lastName: name.slice(1).join(" ") || "",
+                role: "doctor",
+                specialty: form.specialty?.value || null,
+                licenseNumber: form.license_number?.value || null,
+                practiceDescription: form.practice_description?.value || null,
+              });
+              toast.success("Doctor account created! Please sign in.");
+              navigate("/login", { replace: true });
+            } catch (err) {
+              const msg = err.message || "Registration failed";
+              setError(msg);
+              toast.error(msg);
+            } finally {
+              setLoading(false);
+            }
+          }}>
+            {error && (
+              <div className="p-3 rounded-lg bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-300 text-sm">
+                {error}
+              </div>
+            )}
             {/* Section 1: Personal Info */}
             <div className="space-y-4">
               <div className="flex items-center gap-2 border-b border-slate-100 dark:border-slate-800 pb-2 mb-4">
@@ -62,8 +100,10 @@ function DoctorRegistration() {
                   <input
                     className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 focus:ring-2 focus:ring-primary focus:border-primary transition-all p-3"
                     id="full_name"
-                    placeholder="Dr. Jane Smith"
+                    name="full_name"
+                    placeholder="Dr. Anne Mutoni"
                     type="text"
+                    required
                   />
                 </div>
                 <div className="flex flex-col gap-1.5">
@@ -76,8 +116,10 @@ function DoctorRegistration() {
                   <input
                     className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 focus:ring-2 focus:ring-primary focus:border-primary transition-all p-3"
                     id="email"
-                    placeholder="jane.smith@hospital.com"
+                    name="email"
+                    placeholder="mutoni@chck.rw"
                     type="email"
+                    required
                   />
                 </div>
               </div>
@@ -92,8 +134,10 @@ function DoctorRegistration() {
                   <input
                     className="w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 focus:ring-2 focus:ring-primary focus:border-primary transition-all p-3 pr-10"
                     id="password"
+                    name="password"
                     placeholder="••••••••••••"
                     type="password"
+                    required
                   />
                   <span className="material-icons absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 cursor-pointer hover:text-slate-600 transition-colors">
                     visibility_off
@@ -114,7 +158,7 @@ function DoctorRegistration() {
                 </h2>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="flex flex-col gap-1.5">
+                <div className="flex flex-col gap-1.5 md:col-span-2">
                   <label
                     className="text-sm font-semibold text-slate-700 dark:text-slate-300"
                     htmlFor="specialty"
@@ -126,16 +170,31 @@ function DoctorRegistration() {
                       className="w-full appearance-none rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 focus:ring-2 focus:ring-primary focus:border-primary transition-all p-3 pr-10"
                       defaultValue=""
                       id="specialty"
+                      name="specialty"
+                      required
                     >
                       <option disabled value="">
                         Select Specialty
                       </option>
-                      <option value="cardiology">Cardiology</option>
-                      <option value="general-practice">General Practice</option>
-                      <option value="pediatrics">Pediatrics</option>
-                      <option value="neurology">Neurology</option>
-                      <option value="dermatology">Dermatology</option>
-                      <option value="psychiatry">Psychiatry</option>
+                      <optgroup label="Primary Care">
+                        <option value="General Practice">General Practice</option>
+                        <option value="Family Medicine">Family Medicine</option>
+                        <option value="Internal Medicine">Internal Medicine</option>
+                      </optgroup>
+                      <optgroup label="Specialists">
+                        <option value="Cardiology">Cardiology</option>
+                        <option value="Dermatology">Dermatology</option>
+                        <option value="Neurology">Neurology</option>
+                        <option value="Pediatrics">Pediatrics</option>
+                        <option value="Psychiatry">Psychiatry</option>
+                      </optgroup>
+                      <optgroup label="Surgery">
+                        <option value="General Surgery">General Surgery</option>
+                        <option value="Orthopedic Surgery">Orthopedic Surgery</option>
+                        <option value="Cardiac Surgery">Cardiac Surgery</option>
+                        <option value="Neurosurgery">Neurosurgery</option>
+                        <option value="Plastic Surgery">Plastic Surgery</option>
+                      </optgroup>
                     </select>
                     <span className="material-icons absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none">
                       expand_more
@@ -152,8 +211,24 @@ function DoctorRegistration() {
                   <input
                     className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 focus:ring-2 focus:ring-primary focus:border-primary transition-all p-3"
                     id="license_number"
-                    placeholder="e.g. LIC-12345678"
+                    name="license_number"
+                    placeholder="e.g. RMDC-12345"
                     type="text"
+                  />
+                </div>
+                <div className="flex flex-col gap-1.5 md:col-span-2">
+                  <label
+                    className="text-sm font-semibold text-slate-700 dark:text-slate-300"
+                    htmlFor="practice_description"
+                  >
+                    What do you do?
+                  </label>
+                  <textarea
+                    className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 focus:ring-2 focus:ring-primary focus:border-primary transition-all p-3 resize-none"
+                    id="practice_description"
+                    name="practice_description"
+                    placeholder="Briefly describe your practice, services, and areas of focus (e.g. cardiovascular care, preventive medicine, minor procedures...)"
+                    rows={3}
                   />
                 </div>
               </div>
@@ -161,8 +236,7 @@ function DoctorRegistration() {
                 <span className="material-icons text-primary text-xl">info</span>
                 <p className="text-xs text-primary/80 leading-relaxed italic">
                   By registering, you consent to our automated credentials verification
-                  process. Your license will be checked against the National Board
-                  records.
+                  process. Your license will be verified against the Rwanda Medical and Dental Council (RMDC).
                 </p>
               </div>
             </div>
@@ -170,10 +244,11 @@ function DoctorRegistration() {
             {/* Footer Actions */}
             <div className="pt-6 space-y-4">
               <button
-                className="w-full bg-primary hover:bg-primary/90 text-white font-bold py-4 rounded-lg shadow-lg shadow-primary/25 transition-all flex items-center justify-center gap-2 group"
+                disabled={loading}
+                className="w-full bg-primary hover:bg-primary/90 text-white font-bold py-4 rounded-lg shadow-lg shadow-primary/25 transition-all flex items-center justify-center gap-2 group disabled:opacity-60"
                 type="submit"
               >
-                Register as Doctor
+                {loading ? "Registering..." : "Register as Doctor"}
                 <span className="material-icons text-xl group-hover:translate-x-1 transition-transform">
                   arrow_forward
                 </span>

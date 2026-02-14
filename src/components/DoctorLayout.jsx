@@ -1,14 +1,20 @@
+import { useState, useEffect } from "react";
 import { NavLink, Outlet, useNavigate } from "react-router-dom";
+import { getMe, logout } from "../api/services.js";
 
 function DoctorLayout() {
   const navigate = useNavigate();
+  const [me, setMe] = useState(null);
+
+  useEffect(() => {
+    getMe().then(setMe).catch(() => setMe(null));
+  }, []);
 
   const navItems = [
     { path: "/doctor", icon: "dashboard", label: "Dashboard" },
     { path: "/doctor/patients", icon: "people", label: "Patients" },
     { path: "/doctor/schedule", icon: "calendar_month", label: "Schedule" },
     { path: "/doctor/profile", icon: "person", label: "Profile" },
-    { path: "/doctor/settings", icon: "settings", label: "Settings" },
   ];
 
   return (
@@ -49,15 +55,15 @@ function DoctorLayout() {
         <div className="p-3 border-t border-slate-200 space-y-2">
           <div className="flex items-center gap-3 px-3 py-2">
             <div className="w-10 h-10 rounded-full bg-primary flex items-center justify-center text-white font-bold text-sm shrink-0">
-              DS
+              {(me?.names || "D").split(" ").map((n) => n[0]).join("").slice(0, 2).toUpperCase()}
             </div>
             <div className="min-w-0">
-              <p className="font-medium text-slate-900 truncate">Dr. Smith</p>
+              <p className="font-medium text-slate-900 truncate">{me?.names ? (me.names.startsWith("Dr") ? me.names : `Dr. ${me.names}`) : "Doctor"}</p>
               <p className="text-xs text-slate-500 truncate">Doctor</p>
             </div>
           </div>
           <button
-            onClick={() => navigate("/")}
+            onClick={() => { logout(); navigate("/login"); }}
             className="flex items-center gap-3 w-full px-3 py-2.5 rounded-lg text-sm font-medium text-slate-600 hover:bg-slate-100 transition-colors"
           >
             <span className="material-icons text-xl">logout</span>

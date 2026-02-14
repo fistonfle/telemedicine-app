@@ -1,15 +1,46 @@
+import { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
+import { signup } from "./api/services";
+import { useToast } from "./components/Toast";
 
 function SignUp() {
   const navigate = useNavigate();
+  const toast = useToast();
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [role, setRole] = useState("patient");
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    const role = e.target.role?.value;
-    if (role === "doctor") {
-      navigate("/register/doctor");
-    } else {
-      // Patient flow - add your API/backend logic here
+    setError("");
+    const form = e.target;
+    const selectedRole = form.role?.value || role;
+    setLoading(true);
+    try {
+      const name = (form.name?.value || "").trim().split(/\s+/);
+      const firstName = name[0] || "";
+      const lastName = name.slice(1).join(" ") || "";
+      const data = {
+        email: form.email?.value?.trim(),
+        password: form.password?.value,
+        firstName,
+        lastName,
+        role: selectedRole === "doctor" ? "doctor" : "patient",
+      };
+      if (selectedRole === "doctor") {
+        data.specialty = form.specialty?.value || null;
+        data.licenseNumber = form.license_number?.value || null;
+        data.practiceDescription = form.practice_description?.value || null;
+      }
+      await signup(data);
+      toast.success("Account created! Please sign in.");
+      navigate("/login", { replace: true });
+    } catch (err) {
+      const msg = err.message || "Sign up failed";
+      setError(msg);
+      toast.error(msg);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -37,7 +68,7 @@ function SignUp() {
             </p>
           </div>
 
-          <form action="#" className="space-y-8" method="POST" onSubmit={handleSubmit}>
+          <form className="space-y-8" onSubmit={handleSubmit}>
             {/* Role Selection */}
             <div className="space-y-4">
               <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300">
@@ -46,7 +77,7 @@ function SignUp() {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 role-selector">
                 {/* Patient Option */}
                 <label className="cursor-pointer">
-                  <input defaultChecked name="role" type="radio" value="patient" />
+                  <input defaultChecked name="role" type="radio" value="patient" onChange={() => setRole("patient")} />
                   <div className="role-card h-full p-5 border-2 border-slate-100 dark:border-slate-800 rounded-xl transition-all duration-200 hover:border-primary/50">
                     <div className="flex items-start gap-4">
                       <div className="icon-box w-12 h-12 shrink-0 bg-slate-100 dark:bg-slate-800 rounded-lg flex items-center justify-center text-slate-500 dark:text-slate-400 transition-colors">
@@ -66,7 +97,7 @@ function SignUp() {
 
                 {/* Doctor Option */}
                 <label className="cursor-pointer">
-                  <input name="role" type="radio" value="doctor" />
+                  <input name="role" type="radio" value="doctor" onChange={() => setRole("doctor")} />
                   <div className="role-card h-full p-5 border-2 border-slate-100 dark:border-slate-800 rounded-xl transition-all duration-200 hover:border-primary/50">
                     <div className="flex items-start gap-4">
                       <div className="icon-box w-12 h-12 shrink-0 bg-slate-100 dark:bg-slate-800 rounded-lg flex items-center justify-center text-slate-500 dark:text-slate-400 transition-colors">
@@ -86,6 +117,11 @@ function SignUp() {
               </div>
             </div>
 
+            {error && (
+              <div className="p-3 rounded-lg bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-300 text-sm">
+                {error}
+              </div>
+            )}
             {/* Input Fields */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div className="space-y-2 md:col-span-2">
@@ -103,7 +139,7 @@ function SignUp() {
                     className="block w-full pl-10 pr-3 py-3 border border-slate-200 dark:border-slate-700 rounded-lg bg-slate-50 dark:bg-slate-800/50 text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all"
                     id="name"
                     name="name"
-                    placeholder="John Doe"
+                    placeholder="Enter your full name"
                     type="text"
                   />
                 </div>
@@ -124,7 +160,7 @@ function SignUp() {
                     className="block w-full pl-10 pr-3 py-3 border border-slate-200 dark:border-slate-700 rounded-lg bg-slate-50 dark:bg-slate-800/50 text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all"
                     id="email"
                     name="email"
-                    placeholder="john@example.com"
+                    placeholder="you@example.com"
                     type="email"
                   />
                 </div>
@@ -173,6 +209,73 @@ function SignUp() {
               </div>
             </div>
 
+            {/* Doctor-only fields */}
+            {role === "doctor" && (
+              <div className="space-y-4 pt-4 border-t border-slate-100 dark:border-slate-800">
+                <h3 className="text-sm font-bold uppercase tracking-wider text-slate-400">
+                  Medical Credentials
+                </h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="flex flex-col gap-1.5 md:col-span-2">
+                    <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300" htmlFor="specialty">
+                      Medical Specialty
+                    </label>
+                    <select
+                      className="w-full appearance-none rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 p-3 pr-10 focus:ring-2 focus:ring-primary focus:border-transparent"
+                      id="specialty"
+                      name="specialty"
+                      required
+                    >
+                      <option value="">Select Specialty</option>
+                      <optgroup label="Primary Care">
+                        <option value="General Practice">General Practice</option>
+                        <option value="Family Medicine">Family Medicine</option>
+                        <option value="Internal Medicine">Internal Medicine</option>
+                      </optgroup>
+                      <optgroup label="Specialists">
+                        <option value="Cardiology">Cardiology</option>
+                        <option value="Dermatology">Dermatology</option>
+                        <option value="Neurology">Neurology</option>
+                        <option value="Pediatrics">Pediatrics</option>
+                        <option value="Psychiatry">Psychiatry</option>
+                      </optgroup>
+                      <optgroup label="Surgery">
+                        <option value="General Surgery">General Surgery</option>
+                        <option value="Orthopedic Surgery">Orthopedic Surgery</option>
+                        <option value="Cardiac Surgery">Cardiac Surgery</option>
+                        <option value="Neurosurgery">Neurosurgery</option>
+                        <option value="Plastic Surgery">Plastic Surgery</option>
+                      </optgroup>
+                    </select>
+                  </div>
+                  <div className="flex flex-col gap-1.5">
+                    <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300" htmlFor="license_number">
+                      License Number
+                    </label>
+                    <input
+                      className="block w-full px-4 py-3 border border-slate-200 dark:border-slate-700 rounded-lg bg-slate-50 dark:bg-slate-800/50 focus:ring-2 focus:ring-primary focus:border-transparent"
+                      id="license_number"
+                      name="license_number"
+                      placeholder="e.g. RMDC-12345"
+                      type="text"
+                    />
+                  </div>
+                  <div className="flex flex-col gap-1.5 md:col-span-2">
+                    <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300" htmlFor="practice_description">
+                      What do you do?
+                    </label>
+                    <textarea
+                      className="block w-full px-4 py-3 border border-slate-200 dark:border-slate-700 rounded-lg bg-slate-50 dark:bg-slate-800/50 focus:ring-2 focus:ring-primary focus:border-transparent resize-none"
+                      id="practice_description"
+                      name="practice_description"
+                      placeholder="Briefly describe your practice and services"
+                      rows={3}
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
+
             {/* Terms and Privacy */}
             <div className="flex items-start gap-3">
               <input
@@ -195,10 +298,11 @@ function SignUp() {
 
             {/* Submit Button */}
             <button
-              className="w-full bg-primary hover:bg-primary/90 text-white font-bold py-4 px-6 rounded-xl transition-all shadow-lg shadow-primary/20 transform active:scale-[0.98]"
+              disabled={loading}
+              className="w-full bg-primary hover:bg-primary/90 text-white font-bold py-4 px-6 rounded-xl transition-all shadow-lg shadow-primary/20 transform active:scale-[0.98] disabled:opacity-60"
               type="submit"
             >
-              Create Account
+              {loading ? "Creating account..." : role === "doctor" ? "Register as Doctor" : "Create Account"}
             </button>
           </form>
 
@@ -206,7 +310,7 @@ function SignUp() {
           <div className="mt-10 pt-8 border-t border-slate-100 dark:border-slate-800 text-center">
             <p className="text-slate-600 dark:text-slate-400 font-medium">
               Already have an account?{" "}
-              <Link className="text-primary hover:text-primary/80 font-bold ml-1 transition-colors" to="/patient">
+              <Link className="text-primary hover:text-primary/80 font-bold ml-1 transition-colors" to="/login">
                 Login
               </Link>
             </p>

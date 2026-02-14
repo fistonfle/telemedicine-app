@@ -1,41 +1,49 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Badge from "../components/Badge";
-
-const MOCK_CONSULTATIONS = [
-  {
-    id: 1,
-    doctor: "Dr. Sarah Jenkins",
-    specialty: "Cardiology Specialist",
-    date: "Oct 24, 2023",
-    time: "10:30 AM",
-    diagnosis: "Mild hypertension...",
-    status: "completed",
-    hasReport: true,
-  },
-  {
-    id: 2,
-    doctor: "Dr. Marcus Thorne",
-    specialty: "General Practitioner",
-    date: "Sep 12, 2023",
-    time: "03:00 PM",
-    diagnosis: "Seasonal allergies and virus.",
-    status: "completed",
-    hasReport: true,
-  },
-  {
-    id: 3,
-    doctor: "Dr. Elena Rodriguez",
-    specialty: "Dermatologist",
-    date: "Aug 05, 2023",
-    time: "11:15 AM",
-    diagnosis: "Consultation was completed by the patient.",
-    status: "completed",
-    hasReport: false,
-  },
-];
+import { getConsultations, getConsultationStats } from "../api/services";
 
 function ConsultationHistory() {
   const [searchQuery, setSearchQuery] = useState("");
+  const [consultations, setConsultations] = useState([]);
+  const [stats, setStats] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    setLoading(true);
+    Promise.all([
+      getConsultations(searchQuery),
+      getConsultationStats(),
+    ])
+      .then(([list, s]) => {
+        setConsultations(list);
+        setStats(s);
+      })
+      .catch((err) => setError(err.message))
+      .finally(() => setLoading(false));
+  }, [searchQuery]);
+
+  if (loading && !consultations.length) {
+    return (
+      <div className="p-8 flex items-center justify-center min-h-[400px]">
+        <div className="flex flex-col items-center gap-4">
+          <div className="w-12 h-12 border-4 border-primary border-t-transparent rounded-full animate-spin" />
+          <p className="text-slate-500">Loading...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="p-8">
+        <div className="bg-red-50 border border-red-200 rounded-xl p-6 text-red-700">
+          <p className="font-semibold">Error loading consultations</p>
+          <p className="text-sm mt-1">{error}</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="p-8">
@@ -60,12 +68,11 @@ function ConsultationHistory() {
       </div>
 
       {/* Summary Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
         {[
-          { label: "Total Consultations", value: "24", sub: "Today", variant: "emerald" },
-          { label: "Unread Messages", value: "3", sub: "Last Month", icon: "schedule" },
-          { label: "Recent Checkups", value: "3", icon: "check_circle" },
-          { label: "Average Overall Rating", value: "4.9/5.0", icon: "star" },
+          { label: "Total Consultations", value: stats?.total ?? "—", sub: "Today" },
+          { label: "Recent Checkups", value: stats?.recent ?? "—" },
+          { label: "Average Overall Rating", value: stats?.avgRating ?? "—" },
         ].map((stat) => (
           <div
             key={stat.label}
@@ -88,7 +95,7 @@ function ConsultationHistory() {
           Past Appointments
         </h2>
         <div className="divide-y divide-slate-100">
-          {MOCK_CONSULTATIONS.map((c) => (
+          {consultations.map((c) => (
             <div
               key={c.id}
               className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-6 hover:bg-slate-50/50"
@@ -110,42 +117,15 @@ function ConsultationHistory() {
                   <p className="text-sm text-slate-500 mt-0.5">{c.diagnosis}</p>
                 </div>
               </div>
-              <div className="flex items-center gap-4 shrink-0">
+              <div className="shrink-0">
                 <Badge variant={c.status}>{c.status}</Badge>
-                <button
-                  className={`px-4 py-2 rounded-lg text-sm font-medium ${
-                    c.hasReport
-                      ? "bg-primary text-white hover:bg-primary/90"
-                      : "border border-slate-200 text-slate-600 hover:bg-slate-50"
-                  }`}
-                >
-                  {c.hasReport ? "View Report" : "Report Unavailable"}
-                </button>
               </div>
             </div>
           ))}
         </div>
 
-        {/* Pagination */}
-        <div className="px-6 py-4 border-t border-slate-100 flex items-center justify-between">
-          <p className="text-sm text-slate-500">Page 1 of 3</p>
-          <div className="flex items-center gap-2">
-            <button className="p-2 rounded-lg hover:bg-slate-100 disabled:opacity-50">
-              <span className="material-icons text-slate-600">chevron_left</span>
-            </button>
-            <span className="px-3 py-1 bg-primary text-white rounded-lg text-sm font-medium">
-              1
-            </span>
-            <button className="px-3 py-1 rounded-lg text-slate-600 hover:bg-slate-100 text-sm">
-              2
-            </button>
-            <button className="px-3 py-1 rounded-lg text-slate-600 hover:bg-slate-100 text-sm">
-              3
-            </button>
-            <button className="p-2 rounded-lg hover:bg-slate-100">
-              <span className="material-icons text-slate-600">chevron_right</span>
-            </button>
-          </div>
+        <div className="px-6 py-4 border-t border-slate-100">
+          <p className="text-sm text-slate-500">{consultations.length} consultations</p>
         </div>
       </div>
     </div>

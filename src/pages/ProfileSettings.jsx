@@ -1,38 +1,89 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { getProfile, updateProfile } from "../api/services";
 
 function ProfileSettings() {
   const [saved, setSaved] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
   const [form, setForm] = useState({
-    fullName: "James Wilson",
-    email: "james.wilson@example.com",
-    phone: "+1 (301) 123-4567",
-    dateOfBirth: "May 1st, 1985",
-    address: "123 Healthcare Way, Apartment 4B, San Francisco CA 94105",
+    fullName: "",
+    email: "",
+    phone: "",
+    dateOfBirth: "",
+    address: "",
     currentPassword: "",
     newPassword: "",
     confirmPassword: "",
   });
 
-  const handleSave = (e) => {
+  useEffect(() => {
+    const load = async () => {
+      try {
+        const p = await getProfile();
+        setForm((prev) => ({
+          ...prev,
+          fullName: p?.names || (p ? `${p.firstName || ""} ${p.lastName || ""}`.trim() : "") || "",
+          email: p?.email || "",
+          phone: p?.phone || "",
+          address: p?.address || "",
+          dateOfBirth: prev.dateOfBirth || "",
+        }));
+      } catch (err) {
+        setError(err.message);
+      } finally {
+        setLoading(false);
+      }
+    };
+    load();
+  }, []);
+
+  const handleSave = async (e) => {
     e.preventDefault();
-    setSaved(true);
-    setTimeout(() => setSaved(false), 3000);
+    setError(null);
+    const name = form.fullName.trim().split(/\s+/);
+    try {
+      await updateProfile({
+        names: form.fullName.trim(),
+        firstName: name[0] || "",
+        lastName: name.slice(1).join(" ") || "",
+        email: form.email.trim() || undefined,
+        phone: form.phone || undefined,
+        address: form.address || undefined,
+      });
+      setSaved(true);
+      setTimeout(() => setSaved(false), 3000);
+    } catch (err) {
+      setError(err.message || "Failed to save");
+    }
   };
+
+  if (loading) {
+    return (
+      <div className="p-8 flex items-center justify-center min-h-[400px]">
+        <div className="w-12 h-12 border-4 border-primary border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
+  }
 
   return (
     <div className="p-8">
+      {error && (
+        <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-xl text-red-700 text-sm">
+          {error}
+        </div>
+      )}
       {/* Header */}
       <div className="flex justify-between items-center mb-8">
         <h1 className="text-3xl font-bold text-slate-900">Profile Settings</h1>
         <div className="flex items-center gap-2">
           <div className="w-10 h-10 rounded-full bg-primary flex items-center justify-center text-white font-bold">
-            JW
+            {(form.fullName || "?").split(" ").filter(Boolean).map((n) => n[0]).join("").slice(0, 2).toUpperCase() || "?"}
           </div>
-          <span className="font-medium text-slate-900">James Wilson</span>
+          <span className="font-medium text-slate-900">{form.fullName || "—"}</span>
         </div>
       </div>
 
-      <form onSubmit={handleSave} className="max-w-2xl">
+      <form onSubmit={handleSave} className="max-w-2xl" key={form.fullName || "form"}>
         <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
           <div className="p-6 space-y-6">
             {/* Profile Picture */}

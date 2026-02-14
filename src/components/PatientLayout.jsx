@@ -1,16 +1,22 @@
+import { useState, useEffect } from "react";
 import { NavLink, Outlet, useNavigate } from "react-router-dom";
+import { getMe, logout } from "../api/services.js";
 
 function PatientLayout() {
   const navigate = useNavigate();
+  const [me, setMe] = useState(null);
+
+  useEffect(() => {
+    getMe().then(setMe).catch(() => setMe(null));
+  }, []);
 
   const navItems = [
     { path: "/patient", icon: "dashboard", label: "Dashboard" },
     { path: "/patient/book", icon: "event", label: "Book Appointment" },
     { path: "/patient/history", icon: "history", label: "History" },
     { path: "/patient/prescriptions", icon: "medication", label: "Prescriptions" },
-    { path: "/patient/messages", icon: "mail", label: "Messages" },
     { path: "/patient/records", icon: "folder", label: "Medical Records" },
-    { path: "/patient/settings", icon: "settings", label: "Settings" },
+    { path: "/patient/profile", icon: "person", label: "Profile" },
   ];
 
   return (
@@ -51,15 +57,15 @@ function PatientLayout() {
         <div className="p-3 border-t border-slate-200 space-y-2">
           <div className="flex items-center gap-3 px-3 py-2">
             <div className="w-10 h-10 rounded-full bg-primary flex items-center justify-center text-white font-bold text-sm shrink-0">
-              AJ
+              {(me?.names || "P").split(" ").map((n) => n[0]).join("").slice(0, 2).toUpperCase()}
             </div>
             <div className="min-w-0">
-              <p className="font-medium text-slate-900 truncate">Alex Johnson</p>
+              <p className="font-medium text-slate-900 truncate">{me?.names ?? "Patient"}</p>
               <p className="text-xs text-slate-500 truncate">Patient</p>
             </div>
           </div>
           <button
-            onClick={() => navigate("/")}
+            onClick={() => { logout(); navigate("/login"); }}
             className="flex items-center gap-3 w-full px-3 py-2.5 rounded-lg text-sm font-medium text-slate-600 hover:bg-slate-100 transition-colors"
           >
             <span className="material-icons text-xl">logout</span>

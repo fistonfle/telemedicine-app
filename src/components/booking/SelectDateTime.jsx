@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 
 const DAYS = ["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"];
 const MONTHS = [
@@ -6,34 +6,48 @@ const MONTHS = [
   "July", "August", "September", "October", "November", "December",
 ];
 
-function SelectDateTime({ doctor, slots, onSelect, onBack }) {
-  const [currentMonth, setCurrentMonth] = useState(10); // October
-  const [currentYear, setCurrentYear] = useState(2023);
-  const [selectedDate, setSelectedDate] = useState(12);
-  const [selectedTime, setSelectedTime] = useState("10:30 AM");
+function SelectDateTime({ doctor, slots = [], loading, selectedDate: propDate, onDateChange, onSelect, onBack }) {
+  const now = propDate ? new Date(propDate) : new Date();
+  const [currentMonth, setCurrentMonth] = useState(now.getMonth() + 1);
+  const [currentYear, setCurrentYear] = useState(now.getFullYear());
+  const [selectedDay, setSelectedDay] = useState(now.getDate());
+  const [selectedSlot, setSelectedSlot] = useState(() => (Array.isArray(slots) && slots.length && typeof slots[0] === "object" ? slots[0] : 1));
 
-  // Simple calendar for October 2023
+  useEffect(() => {
+    if (propDate) {
+      const d = new Date(propDate);
+      setCurrentMonth(d.getMonth() + 1);
+      setCurrentYear(d.getFullYear());
+      setSelectedDay(d.getDate());
+    }
+  }, [propDate]);
+
   const daysInMonth = new Date(currentYear, currentMonth, 0).getDate();
   const firstDay = new Date(currentYear, currentMonth - 1, 1).getDay();
   const calendarDays = [];
-  for (let i = 0; i < firstDay; i++) {
-    calendarDays.push(null);
-  }
-  for (let d = 1; d <= daysInMonth; d++) {
-    calendarDays.push(d);
-  }
+  for (let i = 0; i < firstDay; i++) calendarDays.push(null);
+  for (let d = 1; d <= daysInMonth; d++) calendarDays.push(d);
+
+  const handleDayClick = (day) => {
+    if (!day) return;
+    setSelectedDay(day);
+    onDateChange?.(new Date(currentYear, currentMonth - 1, day));
+  };
 
   const handleContinue = () => {
-    const dateStr = `${MONTHS[currentMonth - 1]} ${selectedDate}, ${currentYear}`;
-    onSelect(dateStr, selectedTime);
+    const dateStr = `${MONTHS[currentMonth - 1]} ${selectedDay}, ${currentYear}`;
+    onSelect(dateStr, selectedSlot);
   };
+
+  const slotList = Array.isArray(slots) ? slots : [];
+  const isSlotObject = slotList.length && typeof slotList[0] === "object";
 
   return (
     <div className="max-w-4xl mx-auto">
       {/* Selected Doctor Info */}
       <div className="flex items-center gap-3 mb-8 p-4 bg-slate-50 rounded-xl">
         <div className="w-12 h-12 rounded-full bg-primary/20 flex items-center justify-center text-primary font-bold">
-          {doctor.avatar}
+          {doctor.avatar ?? (doctor.name || "D").slice(0, 2).toUpperCase()}
         </div>
         <div>
           <h3 className="font-bold text-slate-900">{doctor.name}</h3>
@@ -79,9 +93,9 @@ function SelectDateTime({ doctor, slots, onSelect, onBack }) {
               day ? (
                 <button
                   key={i}
-                  onClick={() => setSelectedDate(day)}
+                  onClick={() => handleDayClick(day)}
                   className={`aspect-square flex items-center justify-center rounded-lg text-sm font-medium transition-colors ${
-                    selectedDate === day
+                    selectedDay === day
                       ? "bg-primary text-white"
                       : "hover:bg-slate-100 text-slate-700"
                   }`}
@@ -105,61 +119,46 @@ function SelectDateTime({ doctor, slots, onSelect, onBack }) {
           </div>
         </div>
 
-        {/* Time Slots */}
+        {/* Slot Numbers */}
         <div className="bg-white border border-slate-200 rounded-xl p-6 shadow-sm">
           <h3 className="font-bold text-slate-900 mb-4">
             Available Slots
           </h3>
           <p className="text-slate-500 text-sm mb-6">
-            {DAYS[new Date(currentYear, currentMonth - 1, selectedDate).getDay()]},{" "}
-            {MONTHS[currentMonth - 1]} {selectedDate}
+            {DAYS[new Date(currentYear, currentMonth - 1, selectedDay).getDay()]},{" "}
+            {MONTHS[currentMonth - 1]} {selectedDay} — Select your slot
           </p>
           <div className="space-y-4">
-            <div>
-              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">
-                Morning Sessions
-              </p>
-              <div className="flex flex-wrap gap-2">
-                {slots.slice(0, 6).map((slot) => (
-                  <button
-                    key={slot}
-                    onClick={() => setSelectedTime(slot)}
-                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                      selectedTime === slot
-                        ? "bg-primary text-white"
-                        : "bg-slate-100 text-slate-700 hover:bg-slate-200"
-                    }`}
-                  >
-                    {slot}
-                  </button>
-                ))}
+            {loading && !slotList.length ? (
+              <div className="flex justify-center py-8">
+                <div className="w-10 h-10 border-4 border-primary border-t-transparent rounded-full animate-spin" />
               </div>
-            </div>
-            <div>
-              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">
-                Afternoon Sessions
-              </p>
+            ) : (
               <div className="flex flex-wrap gap-2">
-                {slots.slice(6).map((slot) => (
-                  <button
-                    key={slot}
-                    onClick={() => setSelectedTime(slot)}
-                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                      selectedTime === slot
-                        ? "bg-primary text-white"
-                        : "bg-slate-100 text-slate-700 hover:bg-slate-200"
-                    }`}
-                  >
-                    {slot}
-                  </button>
-                ))}
+                {slotList.map((slot, idx) => {
+                  const label = isSlotObject ? `Slot ${(slot.slotIndex ?? idx) + 1}` : `Slot ${slot}`;
+                  const key = isSlotObject ? slot.scheduleId ?? idx : slot;
+                  const isSelected = isSlotObject ? selectedSlot?.scheduleId === slot.scheduleId : selectedSlot === slot;
+                  return (
+                    <button
+                      key={key}
+                      onClick={() => setSelectedSlot(slot)}
+                      className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                        isSelected ? "bg-primary text-white" : "bg-slate-100 text-slate-700 hover:bg-slate-200"
+                      }`}
+                    >
+                      {label}
+                    </button>
+                  );
+                })}
               </div>
-            </div>
+            )}
           </div>
           <p className="text-slate-500 text-sm mt-6">
             Current selection:{" "}
             <span className="text-primary font-semibold">
-              {MONTHS[currentMonth - 1]} {selectedDate}, {currentYear} at {selectedTime}
+              {MONTHS[currentMonth - 1]} {selectedDay}, {currentYear}
+              {isSlotObject && selectedSlot?.scheduleId ? ` — Slot ${(selectedSlot.slotIndex ?? 0) + 1}` : ` — Slot ${selectedSlot}`}
             </span>
           </p>
         </div>

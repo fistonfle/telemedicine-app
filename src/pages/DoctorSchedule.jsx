@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { getDoctorSchedule, updateDoctorSchedule } from "../api/services";
 
 const DAYS = [
   "Monday",
@@ -10,19 +11,66 @@ const DAYS = [
   "Sunday",
 ];
 
-const DEFAULT_SCHEDULE = {
-  Monday: { start: "09:00 AM", end: "05:00 PM", maxPatients: 12, unavailable: false },
-  Tuesday: { start: "09:00 AM", end: "05:00 PM", maxPatients: 12, unavailable: false },
-  Wednesday: { start: "09:00 AM", end: "05:00 PM", maxPatients: 12, unavailable: false },
-  Thursday: { start: "09:00 AM", end: "05:00 PM", maxPatients: 12, unavailable: false },
-  Friday: { start: "09:00 AM", end: "05:00 PM", maxPatients: 12, unavailable: false },
-  Saturday: { start: "09:00 AM", end: "05:00 PM", maxPatients: 0, unavailable: true },
-  Sunday: { start: "09:00 AM", end: "05:00 PM", maxPatients: 0, unavailable: true },
-};
+const dayNameToIdx = Object.fromEntries(DAYS.map((d, i) => [d, i + 1]));
+
+function toDisplayTime(hhmm) {
+  if (!hhmm) return "09:00 AM";
+  const [h, m] = String(hhmm).split(":").map(Number);
+  if (h === 0) return `12:${String(m || 0).padStart(2, "0")} AM`;
+  if (h < 12) return `${h}:${String(m || 0).padStart(2, "0")} AM`;
+  if (h === 12) return `12:${String(m || 0).padStart(2, "0")} PM`;
+  return `${h - 12}:${String(m || 0).padStart(2, "0")} PM`;
+}
+
+function fromDisplayTime(str) {
+  if (!str) return "09:00";
+  const match = String(str).match(/^(\d+):(\d+)\s*(AM|PM)$/i);
+  if (!match) return "09:00";
+  let h = parseInt(match[1], 10);
+  const m = parseInt(match[2], 10);
+  if (match[3].toUpperCase() === "PM" && h !== 12) h += 12;
+  if (match[3].toUpperCase() === "AM" && h === 12) h = 0;
+  return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
+}
+
+const DEFAULT_SCHEDULE = Object.fromEntries(
+  DAYS.map((d) => [d, { start: "09:00 AM", end: "05:00 PM", maxPatients: 12, unavailable: d === "Saturday" || d === "Sunday" }])
+);
 
 function DoctorSchedule() {
   const [schedule, setSchedule] = useState(DEFAULT_SCHEDULE);
   const [acceptingPatients, setAcceptingPatients] = useState(true);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    const load = async () => {
+      try {
+        const res = await getDoctorSchedule();
+        if (res?.days) {
+          const next = { ...DEFAULT_SCHEDULE };
+          res.days.forEach((d) => {
+            const name = d.dayName || DAYS[d.dayOfWeek - 1];
+            if (name && next[name] !== undefined) {
+              next[name] = {
+                start: toDisplayTime(d.startTime),
+                end: toDisplayTime(d.endTime),
+                maxPatients: d.maxPatientsPerDay ?? 12,
+                unavailable: d.unavailable ?? (d.maxPatientsPerDay <= 0),
+              };
+            }
+          });
+          setSchedule(next);
+        }
+      } catch (err) {
+        setError(err.message);
+      } finally {
+        setLoading(false);
+      }
+    };
+    load();
+  }, []);
 
   const updateDay = (day, field, value) => {
     setSchedule((prev) => ({
@@ -65,6 +113,14 @@ function DoctorSchedule() {
     (acc, day) => acc + (schedule[day].unavailable ? 0 : schedule[day].maxPatients),
     0
   );
+
+  if (loading) {
+    return (
+      <div className="p-8 flex items-center justify-center min-h-[400px]">
+        <div className="w-12 h-12 border-4 border-primary border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
+  }
 
   return (
     <div className="p-8">
@@ -212,14 +268,46 @@ function DoctorSchedule() {
 
       {/* Actions */}
       <div className="flex justify-end gap-4">
-        <button className="px-4 py-2 border border-slate-200 rounded-lg text-slate-600 font-medium hover:bg-slate-50">
-          Reset Changes
-        </button>
-        <button className="px-4 py-2 border border-slate-200 rounded-lg text-slate-600 font-medium hover:bg-slate-50">
-          Preview Public Profile
-        </button>
-        <button className="px-6 py-2 bg-primary text-white font-semibold rounded-lg hover:bg-primary/90">
-          Save Schedule
+        {error && (
+          <span className="text-red-600 text-sm mr-auto self-center">{error}</span>
+        )}
+        <button
+          type="button"
+          onClick={() => {
+            const days = DAYS.map((day) => ({
+              dayOfWeek: dayNameToIdx[day],
+              startTime: fromDisplayTime(schedule[day]?.start || "09:00 AM"),
+              endTime: fromDisplayTime(schedule[day]?.end || "05:00 PM"),
+              maxPatientsPerDay: schedule[day]?.unavailable ? 0 : (schedule[day]?.maxPatients ?? 12),
+              unavailable: schedule[day]?.unavailable ?? false,
+            }));
+            setSaving(true);
+            setError(null);
+            updateDoctorSchedule(days)
+              .then((res) => {
+                if (res?.days) {
+                  const next = { ...DEFAULT_SCHEDULE };
+                  res.days.forEach((d) => {
+                    const name = d.dayName || DAYS[d.dayOfWeek - 1];
+                    if (name && next[name] !== undefined) {
+                      next[name] = {
+                        start: toDisplayTime(d.startTime),
+                        end: toDisplayTime(d.endTime),
+                        maxPatients: d.maxPatientsPerDay ?? 12,
+                        unavailable: d.unavailable ?? (d.maxPatientsPerDay <= 0),
+                      };
+                    }
+                  });
+                  setSchedule(next);
+                }
+              })
+              .catch((err) => setError(err.message))
+              .finally(() => setSaving(false));
+          }}
+          disabled={loading || saving}
+          className="px-6 py-2 bg-primary text-white font-semibold rounded-lg hover:bg-primary/90 disabled:opacity-60"
+        >
+          {saving ? "Saving..." : "Save Schedule"}
         </button>
       </div>
     </div>

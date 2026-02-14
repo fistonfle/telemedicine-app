@@ -1,11 +1,12 @@
 function ConfirmBooking({
   doctor,
   date,
-  time,
+  slot,
   reasonForVisit,
   onReasonChange,
   onConfirm,
   onBack,
+  submitting = false,
 }) {
   return (
     <div className="max-w-2xl mx-auto">
@@ -40,11 +41,10 @@ function ConfirmBooking({
         <div className="flex items-start gap-3 p-4 bg-slate-50 rounded-xl border border-slate-100">
           <span className="material-icons text-primary">event</span>
           <div>
-            <p className="text-xs font-semibold text-slate-500 uppercase">Date & Time</p>
+            <p className="text-xs font-semibold text-slate-500 uppercase">Date & Slot</p>
             <p className="font-medium text-slate-900">
-              {date}, {time}
+              {date}, Slot {slot}
             </p>
-            <p className="text-sm text-slate-500">30 min session</p>
           </div>
         </div>
         <div className="flex items-start gap-3 p-4 bg-slate-50 rounded-xl border border-slate-100">
@@ -85,10 +85,15 @@ function ConfirmBooking({
       <div className="space-y-4">
         <button
           onClick={onConfirm}
-          className="w-full inline-flex items-center justify-center gap-2 py-4 bg-primary text-white font-bold rounded-lg hover:bg-primary/90"
+          disabled={submitting}
+          className="w-full inline-flex items-center justify-center gap-2 py-4 bg-primary text-white font-bold rounded-lg hover:bg-primary/90 disabled:opacity-70 disabled:cursor-not-allowed"
         >
-          <span className="material-icons">check_circle</span>
-          Confirm Booking
+          {submitting ? (
+            <span className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+          ) : (
+            <span className="material-icons">check_circle</span>
+          )}
+          {submitting ? "Booking..." : "Confirm Booking"}
         </button>
         <button
           onClick={onBack}
