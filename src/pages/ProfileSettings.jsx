@@ -1,7 +1,9 @@
 import { useState, useEffect } from "react";
 import { getProfile, updateProfile } from "../api/services";
+import { useToast } from "../components/Toast";
 
 function ProfileSettings() {
+  const toast = useToast();
   const [saved, setSaved] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -51,9 +53,12 @@ function ProfileSettings() {
         address: form.address || undefined,
       });
       setSaved(true);
+      toast.success("Profile updated successfully");
       setTimeout(() => setSaved(false), 3000);
     } catch (err) {
-      setError(err.message || "Failed to save");
+      const msg = err.message || "Failed to save";
+      setError(msg);
+      toast.error(msg);
     }
   };
 

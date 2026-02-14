@@ -12,6 +12,7 @@ function DoctorLayout() {
 
   const navItems = [
     { path: "/doctor", icon: "dashboard", label: "Dashboard" },
+    { path: "/doctor/appointments", icon: "event_note", label: "Appointments" },
     { path: "/doctor/patients", icon: "people", label: "Patients" },
     { path: "/doctor/schedule", icon: "calendar_month", label: "Schedule" },
     { path: "/doctor/profile", icon: "person", label: "Profile" },

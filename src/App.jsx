@@ -10,6 +10,7 @@ import ConsultationHistory from "./pages/ConsultationHistory.jsx";
 import ProfileSettings from "./pages/ProfileSettings.jsx";
 import Prescriptions from "./pages/Prescriptions.jsx";
 import DoctorDashboard from "./pages/DoctorDashboard.jsx";
+import DoctorAppointments from "./pages/DoctorAppointments.jsx";
 import DoctorSchedule from "./pages/DoctorSchedule.jsx";
 import DoctorPatients from "./pages/DoctorPatients.jsx";
 import CreatePrescription from "./pages/CreatePrescription.jsx";
@@ -38,7 +39,9 @@ function App() {
       </Route>
       <Route path="/doctor" element={<ProtectedRoute><DoctorLayout /></ProtectedRoute>}>
         <Route index element={<DoctorDashboard />} />
+        <Route path="appointments" element={<DoctorAppointments />} />
         <Route path="patients" element={<DoctorPatients />} />
+        <Route path="visit" element={<CreatePrescription />} />
         <Route path="prescriptions/new" element={<CreatePrescription />} />
         <Route path="schedule" element={<DoctorSchedule />} />
         <Route path="profile" element={<ProfileSettings />} />

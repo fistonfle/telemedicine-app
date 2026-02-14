@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { getDoctorSchedule, updateDoctorSchedule } from "../api/services";
+import { useToast } from "../components/Toast";
 
 const DAYS = [
   "Monday",
@@ -34,10 +35,11 @@ function fromDisplayTime(str) {
 }
 
 const DEFAULT_SCHEDULE = Object.fromEntries(
-  DAYS.map((d) => [d, { start: "09:00 AM", end: "05:00 PM", maxPatients: 12, unavailable: d === "Saturday" || d === "Sunday" }])
+  DAYS.map((d) => [d, { start: "09:00 AM", end: "05:00 PM", maxPatients: 12, slotDuration: 60, unavailable: d === "Saturday" || d === "Sunday" }])
 );
 
 function DoctorSchedule() {
+  const toast = useToast();
   const [schedule, setSchedule] = useState(DEFAULT_SCHEDULE);
   const [acceptingPatients, setAcceptingPatients] = useState(true);
   const [loading, setLoading] = useState(true);
@@ -57,6 +59,7 @@ function DoctorSchedule() {
                 start: toDisplayTime(d.startTime),
                 end: toDisplayTime(d.endTime),
                 maxPatients: d.maxPatientsPerDay ?? 12,
+                slotDuration: d.slotDurationMinutes ?? 60,
                 unavailable: d.unavailable ?? (d.maxPatientsPerDay <= 0),
               };
             }
@@ -89,6 +92,7 @@ function DoctorSchedule() {
             ...monday,
             unavailable: prev[day].unavailable,
             maxPatients: prev[day].unavailable ? 0 : monday.maxPatients,
+            slotDuration: monday.slotDuration ?? 60,
           };
         }
       });
@@ -163,7 +167,10 @@ function DoctorSchedule() {
                 Operating Hours
               </th>
               <th className="text-left py-4 px-6 text-xs font-semibold text-slate-500 uppercase tracking-wider">
-                Max Patients
+                Max Slots
+              </th>
+              <th className="text-left py-4 px-6 text-xs font-semibold text-slate-500 uppercase tracking-wider">
+                Slot Duration <span className="font-normal text-slate-400">(default 1h)</span>
               </th>
               <th className="text-left py-4 px-6 text-xs font-semibold text-slate-500 uppercase tracking-wider">
                 Action
@@ -221,6 +228,19 @@ function DoctorSchedule() {
                   />
                 </td>
                 <td className="py-4 px-6">
+                  <select
+                    value={schedule[day].slotDuration ?? 60}
+                    disabled={schedule[day].unavailable}
+                    onChange={(e) => updateDay(day, "slotDuration", parseInt(e.target.value) || 60)}
+                    className="px-3 py-2 border border-slate-200 rounded-lg text-sm disabled:bg-slate-100 disabled:text-slate-400"
+                  >
+                    <option value={30}>30 min</option>
+                    <option value={60}>1 hour</option>
+                    <option value={90}>1h 30min</option>
+                    <option value={120}>2 hours</option>
+                  </select>
+                </td>
+                <td className="py-4 px-6">
                   <label className="flex items-center gap-2 cursor-pointer">
                     <input
                       type="checkbox"
@@ -260,9 +280,10 @@ function DoctorSchedule() {
       <div className="mb-6 p-4 bg-slate-50 border border-slate-200 rounded-xl">
         <h4 className="font-semibold text-slate-900 mb-2">Schedule Best Practices</h4>
         <ul className="text-sm text-slate-600 space-y-1">
+          <li>• Slot duration defaults to 1 hour. Modify per day in the table above.</li>
+          <li>• Slots divide your working hours (e.g. 9–12 with 1h duration = 3 slots: 9–10, 10–11, 11–12).</li>
           <li>• Schedule updates apply to upcoming weeks only.</li>
           <li>• Existing appointments are not affected by changes.</li>
-          <li>• For emergency cancellations, use the appointment management tool.</li>
         </ul>
       </div>
 
@@ -279,6 +300,7 @@ function DoctorSchedule() {
               startTime: fromDisplayTime(schedule[day]?.start || "09:00 AM"),
               endTime: fromDisplayTime(schedule[day]?.end || "05:00 PM"),
               maxPatientsPerDay: schedule[day]?.unavailable ? 0 : (schedule[day]?.maxPatients ?? 12),
+              slotDurationMinutes: schedule[day]?.unavailable ? 60 : (schedule[day]?.slotDuration ?? 60),
               unavailable: schedule[day]?.unavailable ?? false,
             }));
             setSaving(true);
@@ -294,14 +316,19 @@ function DoctorSchedule() {
                         start: toDisplayTime(d.startTime),
                         end: toDisplayTime(d.endTime),
                         maxPatients: d.maxPatientsPerDay ?? 12,
+                        slotDuration: d.slotDurationMinutes ?? 60,
                         unavailable: d.unavailable ?? (d.maxPatientsPerDay <= 0),
                       };
                     }
                   });
                   setSchedule(next);
+                  toast.success("Schedule updated successfully");
                 }
               })
-              .catch((err) => setError(err.message))
+              .catch((err) => {
+                setError(err.message);
+                toast.error(err.message || "Failed to save schedule");
+              })
               .finally(() => setSaving(false));
           }}
           disabled={loading || saving}

@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import Badge from "../components/Badge";
-import { getDoctorAppointments, getDoctorStats, getPatientTraffic, getMe } from "../api/services";
+import { getDoctorAppointments, getDoctorStats, getPatientTraffic, getMe, updateAppointmentStatus } from "../api/services";
 
 function DoctorDashboard() {
   const [me, setMe] = useState(null);
@@ -10,6 +10,10 @@ function DoctorDashboard() {
   const [trafficData, setTrafficData] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+
+  const loadAppointments = () => {
+    getDoctorAppointments().then(setAppointments).catch((err) => setError(err.message));
+  };
 
   useEffect(() => {
     Promise.all([
@@ -27,6 +31,15 @@ function DoctorDashboard() {
       .catch((err) => setError(err.message))
       .finally(() => setLoading(false));
   }, []);
+
+  const handleStatusChange = async (aptId, status) => {
+    try {
+      await updateAppointmentStatus(aptId, status);
+      loadAppointments();
+    } catch (err) {
+      setError(err.message);
+    }
+  };
 
   const maxPatients = trafficData.length ? Math.max(...trafficData.map((d) => d.patients)) : 1;
 
@@ -107,9 +120,9 @@ function DoctorDashboard() {
           <div className="flex justify-between items-center mb-4">
             <h2 className="text-xl font-bold text-slate-900">Today's Appointments</h2>
             <div className="flex gap-2">
-              <button className="text-sm text-primary font-medium hover:underline">
+              <Link to="/doctor/appointments" className="text-sm text-primary font-medium hover:underline">
                 View All
-              </button>
+              </Link>
               <button className="text-sm text-slate-500 hover:text-slate-700 flex items-center gap-1">
                 <span className="material-icons text-lg">filter_list</span>
                 Filter
@@ -156,13 +169,62 @@ function DoctorDashboard() {
                       <Badge variant={apt.status}>{apt.status}</Badge>
                     </td>
                     <td className="py-4 px-6">
-                      <Link
-                        to={`/doctor/prescriptions/new?appointmentId=${apt.id}&patientId=${encodeURIComponent(apt.patientId || "")}`}
-                        className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-primary hover:bg-primary/10 rounded-lg transition-colors"
-                      >
-                        <span className="material-icons text-base">medication</span>
-                        Write Prescription
-                      </Link>
+                      <div className="flex flex-wrap gap-2">
+                        <Link
+                          to={`/doctor/visit?appointmentId=${apt.id}&patientId=${encodeURIComponent(apt.patientId || "")}`}
+                          className="inline-flex items-center gap-2 px-3 py-2 text-sm font-medium rounded-lg border border-slate-300 bg-white text-slate-700 hover:bg-slate-50 transition-colors"
+                        >
+                          <span className="material-icons text-lg">visibility</span>
+                          View
+                        </Link>
+                        {apt.status === "pending" && (
+                          <button
+                            type="button"
+                            onClick={() => handleStatusChange(apt.id, "APPROVED")}
+                            className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg border border-emerald-600 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 transition-colors"
+                          >
+                            Approve
+                          </button>
+                        )}
+                        {apt.status === "pending" && (
+                          <button
+                            type="button"
+                            onClick={() => handleStatusChange(apt.id, "CANCELLED")}
+                            className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg border border-red-200 bg-red-50 text-red-700 hover:bg-red-100 transition-colors"
+                          >
+                            Cancel
+                          </button>
+                        )}
+                        {apt.status === "approved" && apt.nextStep !== "Complete" && (
+                          <Link
+                            to={`/doctor/visit?appointmentId=${apt.id}&patientId=${encodeURIComponent(apt.patientId || "")}`}
+                            className="inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold rounded-lg shadow-sm border border-primary bg-primary text-white hover:bg-primary/90 transition-colors focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2"
+                          >
+                            <span className="material-icons text-lg">
+                              {apt.nextStep === "Consultation" ? "person" : apt.nextStep === "Tests" ? "science" : "medication"}
+                            </span>
+                            {apt.nextStep === "Consultation" ? "Start consultation" : apt.nextStep === "Tests" ? "Add tests" : apt.nextStep === "Prescription" ? "Write prescription" : "Continue"}
+                          </Link>
+                        )}
+                        {apt.status === "completed" && (
+                          <button
+                            type="button"
+                            onClick={() => handleStatusChange(apt.id, "APPROVED")}
+                            className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg border border-slate-300 bg-white text-slate-700 hover:bg-slate-50 transition-colors"
+                          >
+                            Reopen
+                          </button>
+                        )}
+                        {apt.status === "cancelled" && (
+                          <button
+                            type="button"
+                            onClick={() => handleStatusChange(apt.id, "PENDING")}
+                            className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg border border-slate-300 bg-white text-slate-700 hover:bg-slate-50 transition-colors"
+                          >
+                            Reopen
+                          </button>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 ))}

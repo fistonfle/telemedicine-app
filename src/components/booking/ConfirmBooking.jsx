@@ -1,3 +1,18 @@
+function formatSlotLabel(slot) {
+  if (!slot) return "";
+  if (typeof slot === "object") {
+    const n = (slot.slotIndex ?? 0) + 1;
+    if (slot.start && slot.end) {
+      const start = new Date(slot.start);
+      const end = new Date(slot.end);
+      const opts = { hour: "numeric", minute: "2-digit", hour12: true };
+      return `Slot ${n}: ${start.toLocaleTimeString([], opts)} – ${end.toLocaleTimeString([], opts)}`;
+    }
+    return `Slot ${n}`;
+  }
+  return `Slot ${slot}`;
+}
+
 function ConfirmBooking({
   doctor,
   date,
@@ -14,8 +29,7 @@ function ConfirmBooking({
         Review & Confirm Appointment
       </h1>
       <p className="text-slate-500 mb-8">
-        Please check the details below before proceeding to confirm your video
-        consultation.
+        Please check the details below before proceeding to confirm your appointment.
       </p>
 
       {/* Doctor Card */}
@@ -36,24 +50,15 @@ function ConfirmBooking({
         </div>
       </div>
 
-      {/* Details Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-        <div className="flex items-start gap-3 p-4 bg-slate-50 rounded-xl border border-slate-100">
-          <span className="material-icons text-primary">event</span>
-          <div>
-            <p className="text-xs font-semibold text-slate-500 uppercase">Date & Slot</p>
-            <p className="font-medium text-slate-900">
-              {date}, Slot {slot}
-            </p>
-          </div>
-        </div>
-        <div className="flex items-start gap-3 p-4 bg-slate-50 rounded-xl border border-slate-100">
-          <span className="material-icons text-primary">videocam</span>
-          <div>
-            <p className="text-xs font-semibold text-slate-500 uppercase">Consultation</p>
-            <p className="font-medium text-slate-900">Video Consultation</p>
-            <p className="text-sm text-slate-500">Telemed Secure Link</p>
-          </div>
+      {/* Date & Slot */}
+      <div className="flex items-start gap-3 p-4 bg-slate-50 rounded-xl border border-slate-100 mb-6">
+        <span className="material-icons text-primary">event</span>
+        <div>
+          <p className="text-xs font-semibold text-slate-500 uppercase">Date & Slot</p>
+          <p className="font-medium text-slate-900">
+            {date}
+            {slot != null && ` — ${formatSlotLabel(slot)}`}
+          </p>
         </div>
       </div>
 
@@ -75,9 +80,8 @@ function ConfirmBooking({
       <div className="flex gap-3 p-4 bg-primary/5 border border-primary/20 rounded-xl mb-8">
         <span className="material-icons text-primary shrink-0">info</span>
         <p className="text-sm text-slate-700">
-          A secure meeting link will be sent to your email and phone number 15
-          minutes before the appointment. You can cancel or reschedule up to 24
-          hours in advance.
+          You will receive a reminder before your appointment. You can cancel or
+          reschedule up to 24 hours in advance.
         </p>
       </div>
 

@@ -6,12 +6,46 @@ const MONTHS = [
   "July", "August", "September", "October", "November", "December",
 ];
 
-function SelectDateTime({ doctor, slots = [], loading, selectedDate: propDate, onDateChange, onSelect, onBack }) {
+function formatSlotLabel(slot, idx = 0) {
+  if (!slot) return "";
+  if (typeof slot === "object") {
+    const n = (slot.slotIndex ?? idx) + 1;
+    if (slot.start && slot.end) {
+      const start = new Date(slot.start);
+      const end = new Date(slot.end);
+      const opts = { hour: "numeric", minute: "2-digit", hour12: true };
+      return `Slot ${n}: ${start.toLocaleTimeString([], opts)} – ${end.toLocaleTimeString([], opts)}`;
+    }
+    return `Slot ${n}`;
+  }
+  return `Slot ${slot}`;
+}
+
+function isPastDate(year, month, day) {
+  const today = new Date();
+  const d = new Date(year, month - 1, day);
+  today.setHours(0, 0, 0, 0);
+  d.setHours(0, 0, 0, 0);
+  return d < today;
+}
+
+function formatTimeStr(str) {
+  if (!str) return "";
+  const parts = String(str).split(":");
+  const h = parseInt(parts[0], 10) || 0;
+  const m = parseInt(parts[1], 10) || 0;
+  if (h === 0) return `12:${String(m).padStart(2, "0")} AM`;
+  if (h < 12) return `${h}:${String(m).padStart(2, "0")} AM`;
+  if (h === 12) return `12:${String(m).padStart(2, "0")} PM`;
+  return `${h - 12}:${String(m).padStart(2, "0")} PM`;
+}
+
+function SelectDateTime({ doctor, slots = [], workingHours, loading, selectedDate: propDate, onDateChange, onSelect, onBack }) {
   const now = propDate ? new Date(propDate) : new Date();
   const [currentMonth, setCurrentMonth] = useState(now.getMonth() + 1);
   const [currentYear, setCurrentYear] = useState(now.getFullYear());
   const [selectedDay, setSelectedDay] = useState(now.getDate());
-  const [selectedSlot, setSelectedSlot] = useState(() => (Array.isArray(slots) && slots.length && typeof slots[0] === "object" ? slots[0] : 1));
+  const [selectedSlot, setSelectedSlot] = useState(null);
 
   useEffect(() => {
     if (propDate) {
@@ -22,6 +56,14 @@ function SelectDateTime({ doctor, slots = [], loading, selectedDate: propDate, o
     }
   }, [propDate]);
 
+  useEffect(() => {
+    if (slots?.length && typeof slots[0] === "object") {
+      setSelectedSlot(slots[0]);
+    } else if (!slots?.length) {
+      setSelectedSlot(null);
+    }
+  }, [slots]);
+
   const daysInMonth = new Date(currentYear, currentMonth, 0).getDate();
   const firstDay = new Date(currentYear, currentMonth - 1, 1).getDay();
   const calendarDays = [];
@@ -29,18 +71,17 @@ function SelectDateTime({ doctor, slots = [], loading, selectedDate: propDate, o
   for (let d = 1; d <= daysInMonth; d++) calendarDays.push(d);
 
   const handleDayClick = (day) => {
-    if (!day) return;
+    if (!day || isPastDate(currentYear, currentMonth, day)) return;
     setSelectedDay(day);
     onDateChange?.(new Date(currentYear, currentMonth - 1, day));
   };
 
+  const slotList = Array.isArray(slots) ? slots : [];
+  const assignedSlot = slotList.length ? (selectedSlot ?? slotList[0]) : null;
   const handleContinue = () => {
     const dateStr = `${MONTHS[currentMonth - 1]} ${selectedDay}, ${currentYear}`;
-    onSelect(dateStr, selectedSlot);
+    onSelect(dateStr, assignedSlot);
   };
-
-  const slotList = Array.isArray(slots) ? slots : [];
-  const isSlotObject = slotList.length && typeof slotList[0] === "object";
 
   return (
     <div className="max-w-4xl mx-auto">
@@ -89,25 +130,29 @@ function SelectDateTime({ doctor, slots = [], loading, selectedDate: propDate, o
                 {day}
               </div>
             ))}
-            {calendarDays.map((day, i) =>
-              day ? (
+            {calendarDays.map((day, i) => {
+              const past = day && isPastDate(currentYear, currentMonth, day);
+              return day ? (
                 <button
                   key={i}
                   onClick={() => handleDayClick(day)}
+                  disabled={past}
                   className={`aspect-square flex items-center justify-center rounded-lg text-sm font-medium transition-colors ${
-                    selectedDay === day
-                      ? "bg-primary text-white"
-                      : "hover:bg-slate-100 text-slate-700"
+                    past
+                      ? "text-slate-300 cursor-not-allowed bg-transparent"
+                      : selectedDay === day
+                        ? "bg-primary text-white"
+                        : "hover:bg-slate-100 text-slate-700"
                   }`}
                 >
                   {day}
                 </button>
               ) : (
                 <div key={i} />
-              )
-            )}
+              );
+            })}
           </div>
-          <div className="flex gap-4 text-xs text-slate-500">
+          <div className="flex flex-wrap gap-4 text-xs text-slate-500">
             <span className="flex items-center gap-1">
               <span className="w-2 h-2 rounded-full bg-primary" />
               Selected
@@ -116,51 +161,66 @@ function SelectDateTime({ doctor, slots = [], loading, selectedDate: propDate, o
               <span className="w-2 h-2 rounded-full bg-slate-300" />
               Available
             </span>
+            <span className="flex items-center gap-1">
+              <span className="w-2 h-2 rounded-full bg-transparent border border-slate-200" />
+              Past
+            </span>
           </div>
         </div>
 
-        {/* Slot Numbers */}
+        {/* Available Slots - patient picks preferred time */}
         <div className="bg-white border border-slate-200 rounded-xl p-6 shadow-sm">
           <h3 className="font-bold text-slate-900 mb-4">
             Available Slots
           </h3>
-          <p className="text-slate-500 text-sm mb-6">
-            {DAYS[new Date(currentYear, currentMonth - 1, selectedDay).getDay()]},{" "}
-            {MONTHS[currentMonth - 1]} {selectedDay} — Select your slot
-          </p>
-          <div className="space-y-4">
-            {loading && !slotList.length ? (
-              <div className="flex justify-center py-8">
-                <div className="w-10 h-10 border-4 border-primary border-t-transparent rounded-full animate-spin" />
-              </div>
-            ) : (
-              <div className="flex flex-wrap gap-2">
-                {slotList.map((slot, idx) => {
-                  const label = isSlotObject ? `Slot ${(slot.slotIndex ?? idx) + 1}` : `Slot ${slot}`;
-                  const key = isSlotObject ? slot.scheduleId ?? idx : slot;
-                  const isSelected = isSlotObject ? selectedSlot?.scheduleId === slot.scheduleId : selectedSlot === slot;
-                  return (
-                    <button
-                      key={key}
-                      onClick={() => setSelectedSlot(slot)}
-                      className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                        isSelected ? "bg-primary text-white" : "bg-slate-100 text-slate-700 hover:bg-slate-200"
-                      }`}
-                    >
-                      {label}
-                    </button>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-          <p className="text-slate-500 text-sm mt-6">
-            Current selection:{" "}
-            <span className="text-primary font-semibold">
-              {MONTHS[currentMonth - 1]} {selectedDay}, {currentYear}
-              {isSlotObject && selectedSlot?.scheduleId ? ` — Slot ${(selectedSlot.slotIndex ?? 0) + 1}` : ` — Slot ${selectedSlot}`}
-            </span>
-          </p>
+          {workingHours && propDate && (
+            <p className="text-slate-500 text-sm mb-4">
+              {DAYS[new Date(propDate).getDay()]},{" "}
+              {MONTHS[new Date(propDate).getMonth()]} {new Date(propDate).getDate()} — Working hours: {formatTimeStr(workingHours.dayStart)} – {formatTimeStr(workingHours.dayEnd)}
+            </p>
+          )}
+          {loading && !slotList.length ? (
+            <div className="flex justify-center py-8">
+              <div className="w-10 h-10 border-4 border-primary border-t-transparent rounded-full animate-spin" />
+            </div>
+          ) : slotList.length === 0 ? (
+            <div className="py-4">
+              {workingHours && (
+                <p className="text-slate-500 text-sm mb-2">
+                  Working hours: {formatTimeStr(workingHours.dayStart)} – {formatTimeStr(workingHours.dayEnd)}
+                </p>
+              )}
+              <p className="text-slate-500 text-sm">
+                No available slots for this date. Select another day.
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              <p className="text-slate-500 text-sm mb-3">Choose your preferred slot:</p>
+              {slotList.map((slot, idx) => {
+                const key = slot.start ?? `${slot.scheduleId}-${idx}`;
+                const isSelected = selectedSlot?.start === slot.start;
+                return (
+                  <button
+                    key={key}
+                    onClick={() => setSelectedSlot(slot)}
+                    className={`w-full text-left px-4 py-3 rounded-lg border transition-all ${
+                      isSelected
+                        ? "border-primary bg-primary/10 ring-2 ring-primary ring-offset-1"
+                        : "border-slate-200 hover:border-primary/50 hover:bg-slate-50"
+                    }`}
+                  >
+                    <span className="font-medium text-slate-900">{formatSlotLabel(slot, idx)}</span>
+                  </button>
+                );
+              })}
+              {selectedSlot && (
+                <p className="text-slate-500 text-xs mt-3">
+                  Selected: {formatSlotLabel(selectedSlot)}
+                </p>
+              )}
+            </div>
+          )}
         </div>
       </div>
 
@@ -174,7 +234,8 @@ function SelectDateTime({ doctor, slots = [], loading, selectedDate: propDate, o
         </button>
         <button
           onClick={handleContinue}
-          className="inline-flex items-center gap-2 px-6 py-3 bg-primary text-white font-semibold rounded-lg hover:bg-primary/90"
+          disabled={!assignedSlot}
+          className="inline-flex items-center gap-2 px-6 py-3 bg-primary text-white font-semibold rounded-lg hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed"
         >
           Continue to Confirmation
           <span className="material-icons text-lg">arrow_forward</span>

@@ -6,8 +6,6 @@ import {
   mockPatients,
   mockConsultations,
   mockPrescriptions,
-  mockDoctors,
-  mockSlots,
 } from "./mockData.js";
 
 const MOCK_DELAY_MS = 400;
@@ -38,6 +36,13 @@ const fetchApi = async (path, options = {}) => {
     ...options.headers,
   };
   const res = await fetch(url, { ...options, headers });
+  if (res.status === 401 || res.status === 403) {
+    if (token) {
+      clearStoredToken();
+      window.location.href = "/login";
+      return;
+    }
+  }
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
     throw new Error(err.message || err.error || res.statusText);
@@ -88,7 +93,11 @@ export async function login(email, password) {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ email, password }),
   });
-  if (!res.ok) throw new Error(res.status === 401 ? "Invalid credentials" : res.statusText);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    const msg = err.message || err.error || (res.status === 401 ? "Email or password is incorrect. Please try again." : res.statusText);
+    throw new Error(msg);
+  }
   const data = await res.json();
   if (data.accessToken) setStoredToken(data.accessToken);
   return data;
@@ -190,16 +199,8 @@ export async function getPatientHealthSnapshot() {
 }
 
 export async function getDoctors(specialty) {
-  if (USE_MOCK_API) {
-    await delay();
-    if (specialty && specialty !== "all") {
-      return mockDoctors.filter((d) =>
-        d.specialty.toLowerCase().includes(specialty.toLowerCase())
-      );
-    }
-    return mockDoctors;
-  }
-  const q = specialty && specialty !== "all" ? `?specialty=${specialty}` : "";
+  // Booking always uses real API
+  const q = specialty && specialty !== "all" ? `?specialty=${encodeURIComponent(specialty)}` : "";
   const list = await fetchApi(`/api/doctors${q}`);
   return (list ?? []).map((d) => ({
     id: d.id,
@@ -219,26 +220,34 @@ export async function getDoctors(specialty) {
 }
 
 export async function getTimeSlots(doctorId, date) {
-  if (USE_MOCK_API) {
-    await delay();
-    return mockSlots;
-  }
+  // Booking always uses real API - returns { slots, dayStart, dayEnd }
   const dateStr = typeof date === "string" ? date : date?.toISOString?.()?.slice(0, 10) || date;
-  const list = await fetchApi(`/api/doctors/${doctorId}/slots?date=${dateStr}`);
-  return list.map((s) => ({
+  const res = await fetchApi(`/api/doctors/${doctorId}/slots?date=${dateStr}`);
+  const list = res?.slots ?? [];
+  const mapped = list.map((s, idx) => ({
     ...s,
     scheduleId: s.scheduleId ?? s.id,
     start: s.start,
     end: s.end,
-    slotIndex: s.slotIndex ?? 0,
+    slotIndex: s.slotIndex ?? idx,
   }));
+  // Deduplicate by (scheduleId, start) in case of backend duplicates
+  const seen = new Set();
+  const slots = mapped.filter((s) => {
+    const key = `${s.scheduleId}-${s.start}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+  return {
+    slots,
+    dayStart: res?.dayStart ?? null,
+    dayEnd: res?.dayEnd ?? null,
+  };
 }
 
 export async function createAppointment(data) {
-  if (USE_MOCK_API) {
-    await delay();
-    return { id: Date.now(), ...data };
-  }
+  // Booking always uses real API
   const patientId = data.patientId ?? (await getMe())?.profileId;
   const scheduleId = data.slot?.scheduleId ?? data.scheduleId;
   const appointmentDate = data.slot?.start ?? data.appointmentDate;
@@ -307,20 +316,61 @@ export async function getPrescriptions() {
 
 // ─── Doctor APIs ────────────────────────────────────────────────────────────
 
+export async function updateAppointmentStatus(appointmentId, status) {
+  if (USE_MOCK_API) {
+    await delay();
+    return { id: appointmentId, status };
+  }
+  return fetchApi(`/api/doctor/appointments/${appointmentId}/status`, {
+    method: "PATCH",
+    body: JSON.stringify({ status }),
+  });
+}
+
 export async function getDoctorAppointments() {
   if (USE_MOCK_API) {
     await delay();
     return mockDoctorAppointments;
   }
   const list = await fetchApi("/api/doctor/appointments");
-  return (list ?? []).map((a) => ({
-    id: a.id,
-    patient: a.patientName ?? "—",
-    patientId: a.patientId ?? "",
-    description: "",
-    slot: a.appointmentNumber ?? a.assignedNumber ?? "—",
-    status: (a.status || "PENDING").toLowerCase(),
-  }));
+  return (list ?? []).map((a) => {
+    const hasConsultation = a.hasConsultation === true;
+    const testCount = a.testCount ?? 0;
+    let nextStep;
+    if (!hasConsultation) nextStep = "Consultation";
+    else if (testCount < 1) nextStep = "Tests";
+    else nextStep = "Prescription";
+    return {
+      id: a.id,
+      patient: a.patientName ?? "—",
+      patientId: a.patientId ?? "",
+      description: "",
+      slot: a.appointmentNumber ?? a.assignedNumber ?? "—",
+      status: (a.status || "PENDING").toLowerCase(),
+      appointmentDate: a.appointmentDate ?? null,
+      nextStep,
+    };
+  });
+}
+
+export async function getAppointmentDetails(appointmentId) {
+  if (USE_MOCK_API) return null;
+  const d = await fetchApi(`/api/doctor/appointments/${appointmentId}/details`);
+  if (!d) return null;
+  const a = d.appointment;
+  return {
+    appointment: a ? {
+      id: a.id,
+      patient: a.patientName ?? "—",
+      patientId: a.patientId,
+      slot: a.appointmentNumber ?? a.assignedNumber ?? "—",
+      status: (a.status || "PENDING").toLowerCase(),
+      appointmentDate: a.appointmentDate,
+    } : null,
+    consultation: d.consultation ?? null,
+    tests: d.tests ?? [],
+    prescription: d.prescription ?? null,
+  };
 }
 
 export async function getDoctorAppointment(id) {
@@ -395,6 +445,68 @@ export async function getDoctorPatients(search) {
   }));
 }
 
+export async function getConsultationForAppointment(appointmentId) {
+  if (USE_MOCK_API) return null;
+  return fetchApi(`/api/doctor/appointments/${appointmentId}/consultation`);
+}
+
+export async function createConsultation(data) {
+  if (USE_MOCK_API) {
+    await delay();
+    return { id: "mock-consultation", ...data };
+  }
+  const body = {
+    appointmentId: data.appointmentId,
+    diagnosis: data.diagnosis || "Consultation",
+    notes: data.notes || "",
+    temperatureCelsius: toNum(data.temperatureCelsius),
+    weightKg: toNum(data.weightKg),
+    bloodPressureSystolic: toInt(data.bloodPressureSystolic),
+    bloodPressureDiastolic: toInt(data.bloodPressureDiastolic),
+    heartRateBpm: toInt(data.heartRateBpm),
+    respiratoryRatePerMin: toInt(data.respiratoryRatePerMin),
+    oxygenSaturation: toInt(data.oxygenSaturation),
+    heightCm: toNum(data.heightCm),
+    requiresLabTest: data.requiresLabTest === true,
+    labResultsSameDay: data.labResultsSameDay ?? null,
+    labRequiresFollowUp: data.labRequiresFollowUp ?? null,
+  };
+  return fetchApi("/api/doctor/consultations", { method: "POST", body: JSON.stringify(body) });
+}
+function toNum(v) { return v != null && v !== "" ? Number(v) : null; }
+function toInt(v) { const n = toNum(v); return n != null && !isNaN(n) ? Math.round(n) : null; }
+
+export async function getTestsByConsultation(consultationId) {
+  if (USE_MOCK_API) {
+    await delay();
+    return [];
+  }
+  const list = await fetchApi(`/api/doctor/consultations/${consultationId}/tests`);
+  return list ?? [];
+}
+
+export async function addMedicalTest(consultationId, name, description) {
+  if (USE_MOCK_API) {
+    await delay();
+    return { id: "mock-test-" + Date.now(), name, description, status: "ORDERED" };
+  }
+  return fetchApi(`/api/doctor/consultations/${consultationId}/tests`, {
+    method: "POST",
+    body: JSON.stringify({ consultationId, name, description: description || "" }),
+  });
+}
+
+export async function updateTestStatus(testId, status) {
+  if (USE_MOCK_API) {
+    await delay();
+    return { id: testId, status };
+  }
+  return fetchApi(`/api/doctor/tests/${testId}/status`, {
+    method: "PATCH",
+    body: JSON.stringify({ status }),
+  });
+}
+
 export async function createPrescription(data) {
   if (USE_MOCK_API) {
     await delay();
@@ -421,16 +533,11 @@ export async function createPrescription(data) {
     };
   }
   if (data.appointmentId) {
-    const parts = [];
-    if (data.medication) parts.push(`Medication: ${data.medication}`);
-    if (data.dosage) parts.push(`Dosage: ${data.dosage}`);
-    if (data.frequency) parts.push(`Frequency: ${data.frequency}`);
-    if (data.instructions) parts.push(`Instructions: ${data.instructions}`);
-    if (data.refills != null) parts.push(`Refills: ${data.refills}`);
-    const note = parts.join(". ") || "Prescription";
+    const note = data.note ?? "Prescription";
+    const diagnosis = data.diagnosis ?? "Prescription";
     return fetchApi("/api/doctor/prescriptions/from-appointment", {
       method: "POST",
-      body: JSON.stringify({ appointmentId: data.appointmentId, diagnosis: data.medication || "Prescription", note }),
+      body: JSON.stringify({ appointmentId: data.appointmentId, diagnosis, note }),
     });
   }
   const body = { consultationId: data.consultationId, note: data.note ?? data.instructions ?? "" };

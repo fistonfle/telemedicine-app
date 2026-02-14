@@ -99,7 +99,6 @@ function DoctorPatients() {
                       </div>
                       <div>
                         <p className="font-medium text-slate-900">{patient.name}</p>
-                        <p className="text-xs text-slate-500">ID: {patient.id}</p>
                       </div>
                     </div>
                   </td>

@@ -4,6 +4,7 @@ import SelectDoctor from "../components/booking/SelectDoctor";
 import SelectDateTime from "../components/booking/SelectDateTime";
 import ConfirmBooking from "../components/booking/ConfirmBooking";
 import { getDoctors, getTimeSlots, createAppointment } from "../api/services";
+import { useToast } from "../components/Toast";
 
 const STEPS = [
   { id: 1, label: "Select Doctor" },
@@ -12,6 +13,8 @@ const STEPS = [
 ];
 
 function BookAppointment() {
+  const navigate = useNavigate();
+  const toast = useToast();
   const [step, setStep] = useState(1);
   const [selectedDoctor, setSelectedDoctor] = useState(null);
   const [selectedDate, setSelectedDate] = useState(null);
@@ -19,10 +22,9 @@ function BookAppointment() {
   const [reasonForVisit, setReasonForVisit] = useState("");
   const [specialtyFilter, setSpecialtyFilter] = useState("all");
   const [doctors, setDoctors] = useState([]);
-  const [slots, setSlots] = useState([]);
+  const [slotsData, setSlotsData] = useState({ slots: [], dayStart: null, dayEnd: null });
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
-  const navigate = useNavigate();
 
   useEffect(() => {
     getDoctors(specialtyFilter).then(setDoctors).finally(() => setLoading(false));
@@ -31,9 +33,11 @@ function BookAppointment() {
   useEffect(() => {
     if (selectedDoctor && selectedDate) {
       setLoading(true);
-      getTimeSlots(selectedDoctor.id, selectedDate).then(setSlots).finally(() => setLoading(false));
+      getTimeSlots(selectedDoctor.id, selectedDate)
+        .then((data) => setSlotsData(data ?? { slots: [], dayStart: null, dayEnd: null }))
+        .finally(() => setLoading(false));
     } else if (selectedDoctor && !selectedDate) {
-      setSlots([]);
+      setSlotsData({ slots: [], dayStart: null, dayEnd: null });
     }
   }, [selectedDoctor, selectedDate]);
 
@@ -63,9 +67,10 @@ function BookAppointment() {
         slot: selectedSlot,
         reasonForVisit,
       });
+      toast.success("Appointment booked successfully");
       navigate("/patient");
     } catch (err) {
-      console.error(err);
+      toast.error(err.message || "Failed to book appointment");
     } finally {
       setSubmitting(false);
     }
@@ -121,7 +126,8 @@ function BookAppointment() {
       {step === 2 && selectedDoctor && (
         <SelectDateTime
           doctor={selectedDoctor}
-          slots={slots}
+          slots={slotsData.slots}
+          workingHours={slotsData.dayStart != null && slotsData.dayEnd != null ? { dayStart: slotsData.dayStart, dayEnd: slotsData.dayEnd } : null}
           loading={loading}
           selectedDate={selectedDate}
           onDateChange={handleDateChange}

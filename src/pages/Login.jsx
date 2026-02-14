@@ -22,9 +22,8 @@ function Login() {
       if (me?.role === "DOCTOR") navigate("/doctor", { replace: true });
       else navigate("/patient", { replace: true });
     } catch (err) {
-      const msg = err.message || "Login failed";
+      const msg = err.message || "Login failed. Please try again.";
       setError(msg);
-      toast.error(msg);
     } finally {
       setLoading(false);
     }
@@ -50,8 +49,21 @@ function Login() {
 
           <form onSubmit={handleSubmit} className="space-y-4">
             {error && (
-              <div className="p-3 rounded-lg bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-300 text-sm">
-                {error}
+              <div className="flex items-start gap-3 p-4 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800">
+                <span className="material-icons text-red-600 dark:text-red-400 text-xl shrink-0">error_outline</span>
+                <div className="flex-1 min-w-0">
+                  <p className="font-medium text-red-800 dark:text-red-200">Sign in failed</p>
+                  <p className="text-sm text-red-700 dark:text-red-300 mt-0.5">{error}</p>
+                  <p className="text-xs text-red-600 dark:text-red-400 mt-2">Check your email and password, then try again.</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setError("")}
+                  className="shrink-0 p-1 rounded hover:bg-red-100 dark:hover:bg-red-800/50 text-red-600 dark:text-red-400"
+                  aria-label="Dismiss"
+                >
+                  <span className="material-icons text-lg">close</span>
+                </button>
               </div>
             )}
             <div>
