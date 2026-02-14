@@ -1,16 +1,37 @@
 @import "tailwindcss";
 
-:root {
-  font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
-    sans-serif;
-  line-height: 1.5;
-  font-weight: 400;
-}
+@custom-variant dark (&:where(.dark, .dark *));
 
-* {
-  box-sizing: border-box;
+@theme {
+  --color-primary: #13a4ec;
+  --color-background-light: #f6f7f8;
+  --color-background-dark: #101c22;
+  --font-family-display: "Manrope", sans-serif;
+  --radius: 0.25rem;
+  --radius-lg: 0.5rem;
+  --radius-xl: 0.75rem;
+  --radius-full: 9999px;
 }
 
 body {
-  margin: 0;
+  font-family: var(--font-family-display);
+}
+
+/* Role selector checked state */
+.role-selector input[type="radio"] {
+  position: absolute;
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.role-selector input[type="radio"]:checked + .role-card {
+  border-color: #13a4ec;
+  background-color: rgba(19, 164, 236, 0.05);
+  box-shadow: 0 0 0 2px #13a4ec;
+}
+
+.role-selector input[type="radio"]:checked + .role-card .icon-box {
+  background-color: #13a4ec;
+  color: white;
 }
