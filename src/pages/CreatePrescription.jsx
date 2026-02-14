@@ -368,11 +368,12 @@ function CreatePrescription() {
   }
 
   const displayAppointment = details?.appointment ?? appointment;
+  const isClosed = ["completed", "cancelled"].includes((displayAppointment?.status || "").toLowerCase());
   const activeTests = tests.filter((t) => t.status !== "CANCELLED");
   const hasPrescription = !!details?.prescription;
-  const canWritePrescription = consultation && activeTests.length >= 1 && !hasPrescription;
-  const canAddPrescription = consultation && activeTests.length >= 1;
-  const pageTitle = !consultation ? "Create consultation" : !canAddPrescription ? "Add tests" : hasPrescription ? "Prescription" : "Create prescription";
+  const canWritePrescription = !isClosed && consultation && activeTests.length >= 1 && !hasPrescription;
+  const canAddPrescription = !isClosed && consultation && activeTests.length >= 1;
+  const pageTitle = isClosed ? "Appointment (closed)" : !consultation ? "Create consultation" : !canAddPrescription ? "Add tests" : hasPrescription ? "Prescription" : "Create prescription";
 
   return (
     <div className="p-8 max-w-2xl">
@@ -406,7 +407,7 @@ function CreatePrescription() {
                 </p>
                 <div className="flex items-center gap-2 mt-2 flex-wrap">
                   <Badge variant={(displayAppointment.status || "pending").toLowerCase()}>{(displayAppointment.status || "Pending").charAt(0).toUpperCase() + (displayAppointment.status || "pending").slice(1)}</Badge>
-                  {!["completed", "cancelled"].includes((displayAppointment.status || "").toLowerCase()) && (
+                  {!isClosed && (
                     <button
                       type="button"
                       onClick={() => handleUpdateAppointmentStatus("COMPLETED")}
@@ -415,14 +416,8 @@ function CreatePrescription() {
                       Close appointment
                     </button>
                   )}
-                  {(displayAppointment.status || "").toLowerCase() === "completed" && (
-                    <button
-                      type="button"
-                      onClick={() => handleUpdateAppointmentStatus("APPROVED")}
-                      className="text-sm px-3 py-1 rounded-lg border border-slate-300 text-slate-700 hover:bg-slate-50"
-                    >
-                      Reopen
-                    </button>
+                  {isClosed && (
+                    <span className="text-sm text-slate-500">No further actions — appointment is closed</span>
                   )}
                 </div>
               </div>
@@ -477,7 +472,7 @@ function CreatePrescription() {
       )}
 
       {/* Step 1: Create consultation if needed */}
-      {!consultation && (
+      {!isClosed && !consultation && (
         <div className="mb-8 p-6 bg-amber-50 border border-amber-200 rounded-xl">
           <h2 className="text-lg font-semibold text-slate-900 mb-2">1. Create consultation</h2>
           <p className="text-sm text-slate-600 mb-4">Create a consultation record before adding tests and prescribing.</p>
@@ -607,7 +602,7 @@ function CreatePrescription() {
       )}
 
       {/* Step 2: Add tests */}
-      {consultation && (
+      {!isClosed && consultation && (
         <div className="mb-8 p-6 bg-slate-50 border border-slate-200 rounded-xl">
           <h2 className="text-lg font-semibold text-slate-900 mb-2">
             2. {consultation.requiresLabTest ? "Lab test orders" : "Medical tests"} {activeTests.length >= 1 && <span className="text-green-600 text-sm font-normal">✓</span>}

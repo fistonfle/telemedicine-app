@@ -154,24 +154,6 @@ export default function DoctorAppointments() {
                           {apt.nextStep === "Consultation" ? "Start consultation" : apt.nextStep === "Tests" ? "Add tests" : apt.nextStep === "Prescription" ? "Write prescription" : "Continue"}
                         </Link>
                       )}
-                      {apt.status === "completed" && (
-                        <button
-                          type="button"
-                          onClick={() => handleStatusChange(apt.id, "APPROVED")}
-                          className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg border border-slate-300 bg-white text-slate-700 hover:bg-slate-50 transition-colors"
-                        >
-                          Reopen
-                        </button>
-                      )}
-                      {apt.status === "cancelled" && (
-                        <button
-                          type="button"
-                          onClick={() => handleStatusChange(apt.id, "PENDING")}
-                          className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg border border-slate-300 bg-white text-slate-700 hover:bg-slate-50 transition-colors"
-                        >
-                          Reopen
-                        </button>
-                      )}
                     </div>
                   </td>
                 </tr>
