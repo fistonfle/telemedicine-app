@@ -14,6 +14,7 @@ export const fetchMe = createAsyncThunk(
   }
 );
 
+/** Step 1: email/password. Returns User if no OTP, or { requiresOtp: true, email } if OTP required. */
 export const loginUser = createAsyncThunk(
   "auth/login",
   async (
@@ -21,11 +22,31 @@ export const loginUser = createAsyncThunk(
     { rejectWithValue }
   ) => {
     try {
-      await authService.login(email, password);
+      const res = await authService.login(email, password);
+      if (res.requiresOtp && res.email) {
+        return { requiresOtp: true as const, email: res.email };
+      }
       const me = await authService.getMe();
       return me;
     } catch (err) {
       return rejectWithValue((err as Error).message || "Login failed");
+    }
+  }
+);
+
+/** Step 2: verify OTP and complete login. Call after loginUser returns requiresOtp. */
+export const verifyLoginOtp = createAsyncThunk(
+  "auth/verifyLoginOtp",
+  async (
+    { email, code }: { email: string; code: string },
+    { rejectWithValue }
+  ) => {
+    try {
+      await authService.verifyLoginOtp(email, code);
+      const me = await authService.getMe();
+      return me;
+    } catch (err) {
+      return rejectWithValue((err as Error).message || "Invalid or expired code.");
     }
   }
 );
@@ -118,11 +139,31 @@ const authSlice = createSlice({
       })
       .addCase(loginUser.fulfilled, (state, action) => {
         state.loading = false;
+        const p = action.payload as { requiresOtp?: boolean; email?: string } | User | null;
+        if (p && "requiresOtp" in p && p.requiresOtp) {
+          state.user = null;
+          state.isAuthenticated = false;
+        } else {
+          state.user = (p as User) ?? null;
+          state.isAuthenticated = !!state.user;
+        }
+        state.error = null;
+      })
+      .addCase(loginUser.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload as string;
+      })
+      .addCase(verifyLoginOtp.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(verifyLoginOtp.fulfilled, (state, action) => {
+        state.loading = false;
         state.user = action.payload ?? null;
         state.isAuthenticated = true;
         state.error = null;
       })
-      .addCase(loginUser.rejected, (state, action) => {
+      .addCase(verifyLoginOtp.rejected, (state, action) => {
         state.loading = false;
         state.error = action.payload as string;
       })

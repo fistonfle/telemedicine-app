@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import type { DoctorAppointment } from "../types";
 import { useAppDispatch, useAppSelector } from "../store";
 import { Link } from "react-router-dom";
@@ -19,15 +19,21 @@ function formatTime(iso: string | null | undefined): string {
 export default function DoctorAppointments() {
   const dispatch = useAppDispatch();
   const { appointments, loading, error } = useAppSelector((s) => s.doctor);
+  const [updatingAppointmentId, setUpdatingAppointmentId] = useState<string | number | null>(null);
 
   useEffect(() => {
     dispatch(fetchDoctorAppointments());
   }, [dispatch]);
 
   const handleStatusChange = async (aptId: string | number, status: string) => {
-    const result = await dispatch(updateAppointmentStatusThunk({ appointmentId: aptId, status }));
-    if (updateAppointmentStatusThunk.fulfilled.match(result)) {
-      dispatch(fetchDoctorAppointments());
+    setUpdatingAppointmentId(aptId);
+    try {
+      const result = await dispatch(updateAppointmentStatusThunk({ appointmentId: aptId, status }));
+      if (updateAppointmentStatusThunk.fulfilled.match(result)) {
+        dispatch(fetchDoctorAppointments());
+      }
+    } finally {
+      setUpdatingAppointmentId(null);
     }
   };
 
@@ -109,41 +115,51 @@ export default function DoctorAppointments() {
                     <Badge variant={apt.status}>{apt.status}</Badge>
                   </td>
                   <td className="py-4 px-6">
-                    <div className="flex flex-wrap gap-2">
+                    <div className="flex flex-wrap items-center gap-2">
                       <Link
                         to={`/doctor/visit?appointmentId=${apt.id}&patientId=${encodeURIComponent(apt.patientId || "")}`}
-                        className="inline-flex items-center gap-2 px-3 py-2 text-sm font-medium rounded-lg border border-slate-300 bg-white text-slate-700 hover:bg-slate-50 transition-colors"
+                        title="Open visit"
+                        className="inline-flex items-center gap-2 min-h-[40px] px-3 py-2 rounded-lg border border-slate-200 bg-white text-slate-700 hover:border-primary hover:bg-primary/5 hover:text-primary transition-colors text-sm font-medium"
                       >
-                        <span className="material-icons text-lg">visibility</span>
-                        View
+                        <span className="material-icons text-[20px]">open_in_new</span>
+                        <span className="hidden sm:inline">Open</span>
                       </Link>
                       {apt.status === "pending" && (
-                        <button
-                          type="button"
-                          onClick={() => handleStatusChange(apt.id, "APPROVED")}
-                          className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg border border-emerald-600 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 transition-colors"
-                        >
-                          Approve
-                        </button>
-                      )}
-                      {apt.status === "pending" && (
-                        <button
-                          type="button"
-                          onClick={() => handleStatusChange(apt.id, "CANCELLED")}
-                          className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg border border-red-200 bg-red-50 text-red-700 hover:bg-red-100 transition-colors"
-                        >
-                          Cancel
-                        </button>
+                        updatingAppointmentId === apt.id ? (
+                          <span className="inline-flex items-center gap-2 min-h-[40px] px-3 py-2 text-sm text-slate-500 italic">Updating…</span>
+                        ) : (
+                          <div className="flex items-center gap-1.5 border-l border-slate-200 pl-2">
+                            <button
+                              type="button"
+                              title="Approve appointment"
+                              onClick={() => handleStatusChange(apt.id, "APPROVED")}
+                              className="inline-flex items-center gap-1.5 min-h-[40px] px-3 py-2 rounded-lg border border-emerald-600/50 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 transition-colors text-sm font-medium"
+                            >
+                              <span className="material-icons text-[20px]">check_circle</span>
+                              <span className="hidden sm:inline">Approve</span>
+                            </button>
+                            <button
+                              type="button"
+                              title="Cancel appointment"
+                              onClick={() => handleStatusChange(apt.id, "CANCELLED")}
+                              className="inline-flex items-center gap-1.5 min-h-[40px] px-3 py-2 rounded-lg border border-red-200 bg-red-50/80 text-red-600 hover:bg-red-100 transition-colors text-sm font-medium"
+                            >
+                              <span className="material-icons text-[20px]">cancel</span>
+                              <span className="hidden sm:inline">Cancel</span>
+                            </button>
+                          </div>
+                        )
                       )}
                       {apt.status === "approved" && apt.nextStep !== "Complete" && (
                         <Link
                           to={`/doctor/visit?appointmentId=${apt.id}&patientId=${encodeURIComponent(apt.patientId || "")}`}
-                          className="inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold rounded-lg shadow-sm border border-primary bg-primary text-white hover:bg-primary/90 transition-colors focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2"
+                          title={apt.nextStep === "Consultation" ? "Start consultation" : apt.nextStep === "Tests" ? "Add tests" : apt.nextStep === "Prescription" ? "Write prescription" : "Continue"}
+                          className="inline-flex items-center gap-2 min-h-[40px] px-4 py-2 rounded-lg bg-primary text-white hover:bg-primary/90 transition-colors text-sm font-semibold shadow-sm"
                         >
-                          <span className="material-icons text-lg">
+                          <span className="material-icons text-[20px]">
                             {apt.nextStep === "Consultation" ? "person" : apt.nextStep === "Tests" ? "science" : "medication"}
                           </span>
-                          {apt.nextStep === "Consultation" ? "Start consultation" : apt.nextStep === "Tests" ? "Add tests" : apt.nextStep === "Prescription" ? "Write prescription" : "Continue"}
+                          {apt.nextStep === "Consultation" ? "Consultation" : apt.nextStep === "Tests" ? "Tests" : apt.nextStep === "Prescription" ? "Prescription" : "Continue"}
                         </Link>
                       )}
                     </div>

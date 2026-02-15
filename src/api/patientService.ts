@@ -14,13 +14,8 @@ function formatAppointmentDate(iso: string | undefined): string {
   return d.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
 }
 
-export async function getPatientAppointments(options?: { page?: number; size?: number }): Promise<PatientAppointment[]> {
-  const params = new URLSearchParams();
-  if (options?.page != null) params.set("page", String(options.page));
-  if (options?.size != null) params.set("size", String(options.size));
-  const q = params.toString() ? `?${params.toString()}` : "";
-  const list = await fetchApi<Record<string, unknown>[]>(`/api/patient/appointments${q}`);
-  return (list ?? []).map((a) => ({
+function mapAppointmentToPatient(a: Record<string, unknown>): PatientAppointment {
+  return {
     id: a.id,
     doctor: (a.doctorName as string) ?? "—",
     email: "",
@@ -29,7 +24,26 @@ export async function getPatientAppointments(options?: { page?: number; size?: n
     date: formatAppointmentDate((a.appointmentDate as string) ?? (a.appointment_date as string)),
     slot: String((a.appointmentNumber as string) ?? (a.assignedNumber as string) ?? "—"),
     status: ((a.status as string) || "PENDING").toLowerCase(),
-  }));
+    isFollowUp: a.isFollowUp === true,
+  };
+}
+
+export async function getPatientAppointments(options?: { page?: number; size?: number }): Promise<PatientAppointment[]> {
+  const params = new URLSearchParams();
+  if (options?.page != null) params.set("page", String(options.page));
+  if (options?.size != null) params.set("size", String(options.size));
+  const q = params.toString() ? `?${params.toString()}` : "";
+  const list = await fetchApi<Record<string, unknown>[]>(`/api/patient/appointments${q}`);
+  return (list ?? []).map(mapAppointmentToPatient);
+}
+
+export async function getPatientAppointment(id: string): Promise<PatientAppointment> {
+  const raw = await fetchApi<Record<string, unknown>>(`/api/patient/appointments/${id}`);
+  if (!raw) throw new Error("Appointment not found");
+  const a = "appointment" in raw && raw.appointment && typeof raw.appointment === "object"
+    ? { ...(raw.appointment as Record<string, unknown>), prescriptionNote: (raw as { prescriptionNote?: string | null }).prescriptionNote }
+    : (raw as Record<string, unknown>);
+  return { ...mapAppointmentToPatient(a), prescriptionNote: (a.prescriptionNote as string) ?? null };
 }
 
 export async function getPatientStats(): Promise<PatientStats> {
@@ -66,6 +80,8 @@ export async function getConsultations(search?: string, options?: { page?: numbe
       time: d ? d.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" }) : "—",
       diagnosis: (c.diagnosis as string) || (c.notes as string) || "—",
       status: "completed",
+      labRequiresFollowUp: c.labRequiresFollowUp === true,
+      prescriptionNote: (c.prescriptionNote as string) ?? null,
     };
   });
 }
@@ -75,14 +91,26 @@ export async function getConsultationStats(): Promise<ConsultationStats> {
   return { total: r?.total ?? 0, recent: r?.recent ?? 0, avgRating: r?.avgRating ?? "—" };
 }
 
+function normalizePrescriptionsList(raw: unknown): Record<string, unknown>[] {
+  if (Array.isArray(raw)) return raw;
+  if (raw && typeof raw === "object") {
+    if ("data" in raw && Array.isArray((raw as { data: unknown }).data))
+      return (raw as { data: Record<string, unknown>[] }).data;
+    if ("content" in raw && Array.isArray((raw as { content: unknown }).content))
+      return (raw as { content: Record<string, unknown>[] }).content;
+  }
+  return [];
+}
+
 export async function getPrescriptions(options?: { page?: number; size?: number }): Promise<PrescriptionRow[]> {
   const params = new URLSearchParams();
   if (options?.page != null) params.set("page", String(options.page));
   if (options?.size != null) params.set("size", String(options.size));
   const q = params.toString() ? `?${params.toString()}` : "";
-  const list = await fetchApi<Record<string, unknown>[]>(`/api/patient/prescriptions${q}`);
+  const raw = await fetchApi<unknown>(`/api/patient/prescriptions${q}`);
+  const list = normalizePrescriptionsList(raw);
   const rows: PrescriptionRow[] = [];
-  for (const p of list ?? []) {
+  for (const p of list) {
     const note = ((p.note as string) || "Prescription").trim();
     const doctor = p.doctorName
       ? ((p.doctorName as string).startsWith("Dr.") ? (p.doctorName as string) : `Dr. ${p.doctorName}`)

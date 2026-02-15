@@ -14,9 +14,9 @@ function redirectToLogin() {
   window.location.href = "/";
 }
 
-async function getErrorCode(res: Response): Promise<string | undefined> {
-  const err = (await res.json().catch(() => ({}))) as { error?: string; message?: string };
-  return err.error ?? err.message;
+/** Backend ApiError has message (user-facing) and error (e.g. "Bad Request"). Prefer message. */
+async function getErrorBody(res: Response): Promise<{ message?: string; error?: string }> {
+  return (await res.json().catch(() => ({}))) as { message?: string; error?: string };
 }
 
 export async function fetchApi<T = unknown>(
@@ -44,9 +44,9 @@ export async function fetchApi<T = unknown>(
 
   // If forbidden/unauthorized => check if token expired (skip for auth endpoints)
   if (!isAuthCall && (res.status === 401 || res.status === 403)) {
-    const code = await getErrorCode(res);
-
-    if (code === "TOKEN_EXPIRED") {
+    const err = await getErrorBody(res);
+    // Backend puts TOKEN_EXPIRED in "error"; use "message" for user-facing text
+    if (err.error === "TOKEN_EXPIRED") {
       try {
         // single-flight refresh: if one is already running, wait for it
         if (!refreshPromise) {
@@ -68,16 +68,13 @@ export async function fetchApi<T = unknown>(
         throw e instanceof Error ? e : new Error("REFRESH_FAILED");
       }
     } else {
-      // not token-expired: treat as real unauthorized/forbidden
-      // (optional) clear if you want
-      // clearStoredAuth();
-      throw new Error(code || "UNAUTHORIZED");
+      throw new Error(err.message || err.error || "UNAUTHORIZED");
     }
   }
 
   if (!res.ok) {
-    const code = await getErrorCode(res);
-    throw new Error(code || res.statusText);
+    const err = await getErrorBody(res);
+    throw new Error(err.message || err.error || res.statusText);
   }
 
   // if endpoint returns no content

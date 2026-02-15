@@ -107,7 +107,9 @@ function Prescriptions() {
           <div className="p-12 text-center text-slate-500">
             <span className="material-icons text-4xl mb-4 block text-slate-300">medication</span>
             <p className="font-medium">No prescriptions yet</p>
-            <p className="text-sm mt-1">Prescriptions from your doctor will appear here after your appointments.</p>
+            <p className="text-sm mt-1">
+              Prescriptions appear here after a doctor creates one from your visit (Consultation → Prescription). If you’ve had a visit and expected a prescription, ask your doctor to add medications and create the prescription from the visit page.
+            </p>
           </div>
         ) : (
         <div className="overflow-x-auto">

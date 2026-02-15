@@ -148,7 +148,14 @@ function PatientDashboard() {
                       {apt.date}, Slot {apt.slot}
                     </td>
                     <td className="py-4 px-6">
-                      <Badge variant={apt.status}>{apt.status}</Badge>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <Badge variant={apt.status}>{apt.status}</Badge>
+                        {apt.isFollowUp && (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium rounded-md bg-sky-100 text-sky-800">
+                            Follow-up
+                          </span>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -169,8 +176,8 @@ function PatientDashboard() {
       {/* Health Snapshot + CTA */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2 bg-white rounded-xl border border-slate-200 p-6 shadow-sm">
-          <h2 className="text-xl font-bold text-slate-900 mb-1">Health Snapshot</h2>
-          <p className="text-sm text-slate-500 mb-6">Last updated: {health?.lastUpdated ?? "—"}</p>
+          <h2 className="text-xl font-bold text-slate-900 mb-1">Last consultation measures</h2>
+          <p className="text-sm text-slate-500 mb-6">From your most recent visit · {health?.lastUpdated ?? "—"}</p>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             {(health?.metrics ?? []).map((metric: HealthMetric) => (
               <div

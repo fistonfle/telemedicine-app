@@ -37,6 +37,25 @@ export async function updateAppointmentStatus(
   });
 }
 
+/** Schedule a follow-up appointment for a patient (doctor's schedule). Pass sourceAppointmentId when scheduling from a visit so it appears in details. */
+export async function scheduleFollowUp(params: {
+  patientId: string;
+  scheduleId: string;
+  appointmentDate: string;
+  sourceAppointmentId?: string;
+}): Promise<unknown> {
+  const body: Record<string, unknown> = {
+    patientId: params.patientId,
+    scheduleId: params.scheduleId,
+    appointmentDate: params.appointmentDate,
+  };
+  if (params.sourceAppointmentId) body.sourceAppointmentId = params.sourceAppointmentId;
+  return fetchApi("/api/doctor/appointments/follow-up", {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+}
+
 export async function getDoctorAppointments(options?: { page?: number; size?: number }): Promise<DoctorAppointment[]> {
   const params = new URLSearchParams();
   if (options?.page != null) params.set("page", String(options.page));
@@ -80,6 +99,26 @@ export interface ConsultationDetails {
   labRequiresFollowUp?: boolean | string;
 }
 
+export interface PrescriptionMedicationItem {
+  id?: string;
+  medication?: string;
+  dosageAmount?: string;
+  dosageUnit?: string;
+  dosageOther?: string;
+  frequency?: string;
+  frequencyOther?: string;
+  instructions?: string;
+  refills?: number;
+  expiresIn?: number;
+}
+
+export interface ScheduledFollowUpInfo {
+  id: string;
+  appointmentDate?: string;
+  slot?: string;
+  status?: string;
+}
+
 export interface AppointmentDetails {
   appointment: {
     id: string | number;
@@ -91,7 +130,11 @@ export interface AppointmentDetails {
   } | null;
   consultation: ConsultationDetails | null;
   tests: { id?: string; name?: string; description?: string; status?: string }[];
+  medications: PrescriptionMedicationItem[];
   prescription: { note?: string } | null;
+  scheduledFollowUp: ScheduledFollowUpInfo | null;
+  /** When this appointment is a follow-up, the parent (previous) appointment. */
+  parentAppointment: ScheduledFollowUpInfo | null;
 }
 
 export async function getAppointmentDetails(
@@ -101,10 +144,44 @@ export async function getAppointmentDetails(
     appointment?: Record<string, unknown>;
     consultation?: unknown;
     tests?: unknown[];
+    medications?: Record<string, unknown>[];
     prescription?: unknown;
+    scheduledFollowUp?: Record<string, unknown> | null;
+    parentAppointment?: Record<string, unknown> | null;
   }>(`/api/doctor/appointments/${appointmentId}/details`);
   if (!d) return null;
   const a = d.appointment;
+  const meds = (d.medications ?? []) as Record<string, unknown>[];
+  const medications: PrescriptionMedicationItem[] = meds.map((m) => ({
+    id: m.id as string,
+    medication: m.medication as string,
+    dosageAmount: m.dosageAmount as string,
+    dosageUnit: m.dosageUnit as string,
+    dosageOther: m.dosageOther as string,
+    frequency: m.frequency as string,
+    frequencyOther: m.frequencyOther as string,
+    instructions: m.instructions as string,
+    refills: m.refills as number | undefined,
+    expiresIn: m.expiresIn as number | undefined,
+  }));
+  const sf = d.scheduledFollowUp as Record<string, unknown> | null | undefined;
+  const scheduledFollowUp: ScheduledFollowUpInfo | null = sf && sf.id
+    ? {
+        id: String(sf.id),
+        appointmentDate: sf.appointmentDate as string | undefined,
+        slot: sf.appointmentNumber != null ? String(sf.appointmentNumber) : (sf.assignedNumber != null ? String(sf.assignedNumber) : undefined),
+        status: sf.status != null ? String(sf.status).toLowerCase() : undefined,
+      }
+    : null;
+  const pa = d.parentAppointment as Record<string, unknown> | null | undefined;
+  const parentAppointment: ScheduledFollowUpInfo | null = pa && pa.id
+    ? {
+        id: String(pa.id),
+        appointmentDate: pa.appointmentDate as string | undefined,
+        slot: pa.appointmentNumber != null ? String(pa.appointmentNumber) : (pa.assignedNumber != null ? String(pa.assignedNumber) : undefined),
+        status: pa.status != null ? String(pa.status).toLowerCase() : undefined,
+      }
+    : null;
   return {
     appointment: a
       ? {
@@ -118,7 +195,10 @@ export async function getAppointmentDetails(
       : null,
     consultation: (d.consultation as ConsultationDetails) ?? null,
     tests: (d.tests ?? []) as { id?: string; name?: string; description?: string; status?: string }[],
+    medications,
     prescription: (d.prescription as { note?: string }) ?? null,
+    scheduledFollowUp,
+    parentAppointment,
   };
 }
 
@@ -218,6 +298,58 @@ export async function addMedicalTest(
       name,
       description: description || "",
     }),
+  });
+}
+
+export async function getMedicationsByConsultation(consultationId: string | number): Promise<PrescriptionMedicationItem[]> {
+  const list = await fetchApi<Record<string, unknown>[]>(`/api/doctor/consultations/${consultationId}/medications`);
+  return (list ?? []).map((m) => ({
+    id: m.id as string,
+    medication: m.medication as string,
+    dosageAmount: m.dosageAmount as string,
+    dosageUnit: m.dosageUnit as string,
+    dosageOther: m.dosageOther as string,
+    frequency: m.frequency as string,
+    frequencyOther: m.frequencyOther as string,
+    instructions: m.instructions as string,
+    refills: m.refills as number | undefined,
+    expiresIn: m.expiresIn as number | undefined,
+  }));
+}
+
+export async function addPrescriptionMedication(
+  consultationId: string | number,
+  data: {
+    medication: string;
+    dosageAmount?: string;
+    dosageUnit?: string;
+    dosageOther?: string;
+    frequency?: string;
+    frequencyOther?: string;
+    instructions?: string;
+    refills?: number;
+    expiresIn?: number;
+  }
+): Promise<unknown> {
+  return fetchApi(`/api/doctor/consultations/${consultationId}/medications`, {
+    method: "POST",
+    body: JSON.stringify({
+      medication: data.medication?.trim() || "",
+      dosageAmount: data.dosageAmount ?? "",
+      dosageUnit: data.dosageUnit ?? "",
+      dosageOther: data.dosageOther ?? "",
+      frequency: data.frequency ?? "",
+      frequencyOther: data.frequencyOther ?? "",
+      instructions: data.instructions ?? "",
+      refills: data.refills ?? 0,
+      expiresIn: data.expiresIn ?? 90,
+    }),
+  });
+}
+
+export async function deletePrescriptionMedication(consultationId: string | number, medicationId: string): Promise<unknown> {
+  return fetchApi(`/api/doctor/consultations/${consultationId}/medications/${medicationId}`, {
+    method: "DELETE",
   });
 }
 

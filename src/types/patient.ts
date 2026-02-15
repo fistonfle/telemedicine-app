@@ -7,6 +7,10 @@ export interface PatientAppointment {
   date: string;
   slot: string;
   status: string;
+  /** True when this appointment was scheduled as a follow-up of a previous visit. */
+  isFollowUp?: boolean;
+  /** Prescription note (medications) for this appointment's visit, if any. Only present when fetching single appointment details. */
+  prescriptionNote?: string | null;
 }
 
 export interface PatientStats {
@@ -37,6 +41,10 @@ export interface Consultation {
   time: string;
   diagnosis: string;
   status: string;
+  /** When true, patient or doctor can create a follow-up appointment. */
+  labRequiresFollowUp?: boolean;
+  /** Prescription note (medications) for this visit, if any. */
+  prescriptionNote?: string | null;
 }
 
 export interface ConsultationStats {
