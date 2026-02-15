@@ -18,6 +18,8 @@ export interface DoctorAppointment {
   status: string;
   appointmentDate?: string | null;
   nextStep?: string;
+  /** True when this appointment was scheduled as a follow-up of a previous visit. */
+  isFollowUp?: boolean;
 }
 
 export interface DoctorStats {

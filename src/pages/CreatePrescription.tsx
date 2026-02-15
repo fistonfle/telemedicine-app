@@ -8,11 +8,17 @@ import {
   createConsultation,
   getTestsByConsultation,
   addMedicalTest,
+  addPrescriptionMedication,
+  deletePrescriptionMedication,
   updateTestStatus,
   updateAppointmentStatus,
+  getProfile,
+  getTimeSlots,
+  scheduleFollowUp,
 } from "../api/services";
 import type { AppointmentDetails } from "../api/doctorService";
 import type { DoctorAppointment } from "../types";
+import type { TimeSlot } from "../types/booking";
 import { useToast } from "../components/ui/Toast";
 import Badge from "../components/ui/Badge";
 
@@ -83,7 +89,6 @@ function CreatePrescription() {
   });
   const [testForm, setTestForm] = useState({ name: "", description: "" });
   const [showTestForm, setShowTestForm] = useState(false);
-  const [medications, setMedications] = useState<{ medication?: string; dosageAmount?: string; dosageUnit?: string; dosageOther?: string; frequency?: string; frequencyOther?: string; instructions?: string; refills?: number; expiresIn?: number }[]>([]);
   const [showMedicationForm, setShowMedicationForm] = useState(false);
   const [medicationForm, setMedicationForm] = useState({
     medication: "",
@@ -99,6 +104,13 @@ function CreatePrescription() {
   const [form, setForm] = useState({
     patientId: patientIdParam || "",
   });
+  const [doctorProfileId, setDoctorProfileId] = useState<string | null>(null);
+  const [followUpDate, setFollowUpDate] = useState("");
+  const [followUpSlots, setFollowUpSlots] = useState<TimeSlot[]>([]);
+  const [selectedFollowUpSlot, setSelectedFollowUpSlot] = useState<TimeSlot | null>(null);
+  const [followUpSlotsLoading, setFollowUpSlotsLoading] = useState(false);
+  const [followUpScheduling, setFollowUpScheduling] = useState(false);
+  const [updatingTestId, setUpdatingTestId] = useState<string | null>(null);
 
   const loadDetails = useCallback(async () => {
     if (!appointmentId) return;
@@ -165,8 +177,68 @@ function CreatePrescription() {
     loadTests();
   }, [consultation?.id, loadTests]);
 
-  const handleAddMedication = (e: React.FormEvent) => {
+  const needsFollowUp = !!(
+    details?.consultation?.labRequiresFollowUp ||
+    (details?.tests ?? []).some((t) => t.status === "FOLLOW_UP_NEEDED")
+  );
+  useEffect(() => {
+    if (!needsFollowUp || doctorProfileId) return;
+    getProfile()
+      .then((p) => {
+        const id = (p as { profileId?: string })?.profileId ?? (p as { id?: string })?.id;
+        if (id) setDoctorProfileId(String(id));
+      })
+      .catch(() => {});
+  }, [needsFollowUp, doctorProfileId]);
+
+  useEffect(() => {
+    if (!followUpDate || !doctorProfileId) {
+      setFollowUpSlots([]);
+      setSelectedFollowUpSlot(null);
+      return;
+    }
+    setFollowUpSlotsLoading(true);
+    getTimeSlots(doctorProfileId, followUpDate)
+      .then((res) => setFollowUpSlots(res.slots ?? []))
+      .catch(() => setFollowUpSlots([]))
+      .finally(() => setFollowUpSlotsLoading(false));
+    setSelectedFollowUpSlot(null);
+  }, [followUpDate, doctorProfileId]);
+
+  const handleScheduleFollowUp = async () => {
+    const patientId = details?.appointment?.patientId;
+    if (!patientId || !selectedFollowUpSlot?.scheduleId || !selectedFollowUpSlot?.start) {
+      toast.error("Select a date and time slot.");
+      return;
+    }
+    setFollowUpScheduling(true);
+    setError(null);
+    try {
+      await scheduleFollowUp({
+        patientId,
+        scheduleId: String(selectedFollowUpSlot.scheduleId),
+        appointmentDate: selectedFollowUpSlot.start,
+        sourceAppointmentId: appointmentId ?? undefined,
+      });
+      toast.success("Follow-up appointment scheduled.");
+      setFollowUpDate("");
+      setFollowUpSlots([]);
+      setSelectedFollowUpSlot(null);
+      loadDetails();
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Failed to schedule follow-up.";
+      setError(msg);
+      toast.error(msg);
+    } finally {
+      setFollowUpScheduling(false);
+    }
+  };
+
+  const medications = details?.medications ?? [];
+
+  const handleAddMedication = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!consultation?.id) return;
     const hasDosage = medicationForm.dosageAmount?.trim() || (medicationForm.dosageUnit === "OTHER" && medicationForm.dosageOther?.trim());
     const hasFreq = medicationForm.frequency !== "OTHER" || medicationForm.frequencyOther?.trim();
     if (!medicationForm.medication?.trim() || !hasDosage || !hasFreq) {
@@ -174,22 +246,56 @@ function CreatePrescription() {
       return;
     }
     setError(null);
-    setMedications((prev) => [...prev, { ...medicationForm }]);
-    setShowMedicationForm(false);
-    setMedicationForm({
-      medication: "",
-      dosageAmount: "",
-      dosageUnit: "mg",
-      dosageOther: "",
-      frequency: "TWICE_DAILY",
-      frequencyOther: "",
-      instructions: "",
-      refills: 0,
-      expiresIn: 90,
-    });
-    toast.success("Medication added");
+    setSubmitting(true);
+    try {
+      await addPrescriptionMedication(consultation.id, {
+        medication: medicationForm.medication.trim(),
+        dosageAmount: medicationForm.dosageAmount,
+        dosageUnit: medicationForm.dosageUnit,
+        dosageOther: medicationForm.dosageOther,
+        frequency: medicationForm.frequency,
+        frequencyOther: medicationForm.frequencyOther,
+        instructions: medicationForm.instructions,
+        refills: medicationForm.refills ?? 0,
+        expiresIn: medicationForm.expiresIn ?? 90,
+      });
+      setShowMedicationForm(false);
+      setMedicationForm({
+        medication: "",
+        dosageAmount: "",
+        dosageUnit: "mg",
+        dosageOther: "",
+        frequency: "TWICE_DAILY",
+        frequencyOther: "",
+        instructions: "",
+        refills: 0,
+        expiresIn: 90,
+      });
+      const d = await getAppointmentDetails(appointmentId!).catch(() => null);
+      if (d) setDetails(d);
+      toast.success("Medication added");
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Failed to add medication";
+      setError(msg);
+      toast.error(msg);
+    } finally {
+      setSubmitting(false);
+    }
   };
-  const removeMedication = (index: number) => setMedications((prev) => prev.filter((_, i) => i !== index));
+
+  const handleRemoveMedication = async (med: { id?: string }) => {
+    if (!consultation?.id || !med.id) return;
+    setError(null);
+    try {
+      await deletePrescriptionMedication(consultation.id, med.id);
+      const d = await getAppointmentDetails(appointmentId!).catch(() => null);
+      if (d) setDetails(d);
+      toast.success("Medication removed");
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Failed to remove medication";
+      toast.error(msg);
+    }
+  };
 
   const handleCreateConsultation = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -264,6 +370,7 @@ function CreatePrescription() {
   const handleCancelTest = async (testId: string) => {
     if (!appointmentId || !consultation?.id) return;
     setError(null);
+    setUpdatingTestId(testId);
     try {
       await updateTestStatus(testId, "CANCELLED");
       await loadTests();
@@ -274,12 +381,15 @@ function CreatePrescription() {
       const msg = err instanceof Error ? err.message : "Failed to cancel test";
       setError(msg);
       toast.error(msg);
+    } finally {
+      setUpdatingTestId(null);
     }
   };
 
   const handleUpdateTestStatus = async (testId: string, status: string) => {
     if (!appointmentId || !consultation?.id) return;
     setError(null);
+    setUpdatingTestId(testId);
     try {
       await updateTestStatus(testId, status);
       await loadTests();
@@ -290,6 +400,8 @@ function CreatePrescription() {
       const msg = err instanceof Error ? err.message : "Failed to update test";
       setError(msg);
       toast.error(msg);
+    } finally {
+      setUpdatingTestId(null);
     }
   };
 
@@ -317,7 +429,7 @@ function CreatePrescription() {
 
   const handleCreatePrescription = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!appointmentId || !patientIdParam || !consultation || tests.length < 1) return;
+    if (!appointmentId || !patientIdParam || !consultation) return;
     if (medications.length === 0) {
       setError("Add at least one medication before creating the prescription.");
       return;
@@ -325,23 +437,11 @@ function CreatePrescription() {
     setError(null);
     setSubmitting(true);
     try {
-      const medParts = medications.map((m) => {
-        const dosage = formatDosage(m);
-        const frequency = formatFrequency(m);
-        const p = [`${m.medication}`, dosage, frequency, m.instructions].filter(Boolean);
-        let line = p.join(" — ");
-        const extra: string[] = [];
-        if ((m.refills ?? 0) > 0) extra.push(`${m.refills} refills`);
-        if ((m.expiresIn ?? 0) > 0) extra.push(`valid ${m.expiresIn} days`);
-        if (extra.length) line += ` (${extra.join(", ")})`;
-        return line;
-      });
-      const note = medParts.join("\n");
       await createPrescription({
         appointmentId,
         patientId: patientIdParam,
         diagnosis: medications[0]?.medication ?? "Prescription",
-        note,
+        note: "", // backend builds note from saved medications
       });
       toast.success("Prescription created successfully");
       navigate("/doctor");
@@ -389,9 +489,9 @@ function CreatePrescription() {
   const isApproved = statusLower === "approved";
   const activeTests = tests.filter((t) => t.status !== "CANCELLED");
   const hasPrescription = !!details?.prescription;
-  const canWritePrescription = !isClosed && consultation && activeTests.length >= 1 && !hasPrescription;
-  const canAddPrescription = !isClosed && consultation && activeTests.length >= 1;
-  const pageTitle = isClosed ? "Appointment (closed)" : !consultation ? "Create consultation" : !canAddPrescription ? "Add tests" : hasPrescription ? "Prescription" : "Create prescription";
+  const canWritePrescription = !isClosed && consultation && !hasPrescription;
+  const canAddPrescription = !isClosed && consultation;
+  const pageTitle = isClosed ? "Appointment (closed)" : !consultation ? "Create consultation" : hasPrescription ? "Prescription" : "Create prescription";
 
   return (
     <div className="p-8 max-w-2xl">
@@ -404,19 +504,42 @@ function CreatePrescription() {
           Back to Dashboard
         </Link>
         <h1 className="text-3xl font-bold text-slate-900">{pageTitle}</h1>
-        <p className="text-slate-500 mt-1">
+        <p className="text-slate-500 mt-1 flex flex-wrap items-center gap-2">
           {displayAppointment && <>For <span className="font-medium text-slate-700">{displayAppointment.patient}</span> — Slot {displayAppointment.slot}</>}
+          {details?.parentAppointment && (
+            <span className="inline-flex items-center gap-1 px-2.5 py-1 text-sm font-medium rounded-lg bg-sky-100 text-sky-800">
+              <span className="material-icons text-lg">replay</span>
+              Follow-up visit
+            </span>
+          )}
         </p>
       </div>
 
       {/* Appointment details summary */}
-      {(details?.appointment || details?.consultation || details?.tests?.length || details?.prescription) && (
+      {(details?.appointment || details?.consultation || details?.tests?.length || details?.prescription || details?.scheduledFollowUp || details?.parentAppointment) && (
         <div className="mb-8 p-6 bg-slate-50 border border-slate-200 rounded-xl">
           <h2 className="text-lg font-semibold text-slate-900 mb-4 flex items-center gap-2">
             <span className="material-icons text-primary">info</span>
             Appointment details
           </h2>
           <div className="space-y-4">
+            {details?.parentAppointment && (
+              <div className="pb-2 border-b border-slate-200">
+                <p className="text-sm font-medium text-slate-500 mb-1">Previous visit (parent appointment)</p>
+                <p className="text-slate-800">
+                  {details.parentAppointment.appointmentDate
+                    ? new Date(details.parentAppointment.appointmentDate).toLocaleString("en-GB", { weekday: "short", day: "numeric", month: "short", year: "numeric", hour: "numeric", minute: "2-digit" })
+                    : "—"}
+                  {details.parentAppointment.slot != null && ` · Slot ${details.parentAppointment.slot}`}
+                </p>
+                <Link
+                  to={`/doctor/visit?appointmentId=${details.parentAppointment.id}&patientId=${encodeURIComponent(details?.appointment?.patientId ?? "")}`}
+                  className="text-sm font-medium text-primary hover:underline mt-1 inline-block"
+                >
+                  View previous visit →
+                </Link>
+              </div>
+            )}
             {displayAppointment && (
               <div>
                 <p className="text-sm font-medium text-slate-500">Appointment</p>
@@ -425,19 +548,37 @@ function CreatePrescription() {
                 </p>
                 <div className="flex items-center gap-2 mt-2 flex-wrap">
                   <Badge variant={(displayAppointment.status || "pending").toLowerCase()}>{(displayAppointment.status || "Pending").charAt(0).toUpperCase() + (displayAppointment.status || "pending").slice(1)}</Badge>
-                  {!isClosed && (
+                  {!isClosed && isApproved && (
                     <button
                       type="button"
                       onClick={() => handleUpdateAppointmentStatus("COMPLETED")}
-                      className="text-sm px-3 py-1 rounded-lg bg-emerald-600 text-white hover:bg-emerald-700"
+                      disabled={submitting}
+                      className="text-sm px-3 py-1 rounded-lg bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-60"
                     >
-                      Close appointment
+                      {submitting ? "Updating…" : "Close appointment"}
                     </button>
                   )}
                   {isClosed && (
                     <span className="text-sm text-slate-500">No further actions — appointment is closed</span>
                   )}
                 </div>
+              </div>
+            )}
+            {details?.scheduledFollowUp && (
+              <div className="pt-2 border-t border-slate-200">
+                <p className="text-sm font-medium text-slate-500 mb-1">Next appointment (follow-up scheduled)</p>
+                <p className="text-slate-800">
+                  {details.scheduledFollowUp.appointmentDate
+                    ? new Date(details.scheduledFollowUp.appointmentDate).toLocaleString("en-GB", { weekday: "short", day: "numeric", month: "short", year: "numeric", hour: "numeric", minute: "2-digit" })
+                    : "—"}
+                  {details.scheduledFollowUp.slot != null && ` · Slot ${details.scheduledFollowUp.slot}`}
+                </p>
+                <Link
+                  to={`/doctor/visit?appointmentId=${details.scheduledFollowUp.id}&patientId=${encodeURIComponent(details?.appointment?.patientId ?? "")}`}
+                  className="text-sm font-medium text-primary hover:underline mt-1 inline-block"
+                >
+                  Open follow-up visit →
+                </Link>
               </div>
             )}
             {details?.consultation && (
@@ -514,7 +655,7 @@ function CreatePrescription() {
             disabled={submitting}
             className="px-6 py-2.5 bg-primary text-white font-semibold rounded-lg hover:bg-primary/90 disabled:opacity-60"
           >
-            Approve appointment
+            {submitting ? "Updating…" : "Approve appointment"}
           </button>
         </div>
       )}
@@ -647,119 +788,29 @@ function CreatePrescription() {
         </div>
       )}
 
-      {/* Step 2: Add tests */}
-      {!isClosed && consultation && (
+      {/* Step 2: Prescription — medications (available with or without tests) */}
+      {consultation && (
         <div className="mb-8 p-6 bg-slate-50 border border-slate-200 rounded-xl">
           <h2 className="text-lg font-semibold text-slate-900 mb-2">
-            2. {consultation.requiresLabTest ? "Lab test orders" : "Medical tests"} {activeTests.length >= 1 && <span className="text-green-600 text-sm font-normal">✓</span>}
+            2. Prescription — medications {medications.length >= 1 && <span className="text-green-600 text-sm font-normal">✓</span>}
           </h2>
           <p className="text-sm text-slate-600 mb-4">
-            {consultation.requiresLabTest
-              ? "Add lab tests to order. Add each test, then add prescription below — prescribe now; patient may get results same day or return for follow-up."
-              : "Add at least one test, then add prescription (medication) below."}
-          </p>
-          {tests.length > 0 && (
-            <ul className="mb-4 space-y-2">
-              {tests.map((t) => (
-                <li key={t.id} className={`flex items-center gap-2 text-slate-700 ${t.status === "CANCELLED" ? "opacity-60" : ""}`}>
-                  {t.status === "CANCELLED" ? (
-                    <span className="material-icons text-slate-400 text-lg">cancel</span>
-                  ) : (
-                    <span className="material-icons text-green-600 text-lg">check_circle</span>
-                  )}
-                  <span className="font-medium">{t.name}</span>
-                  {t.description && <span className="text-slate-500">— {t.description}</span>}
-                  <Badge variant={t.status === "CANCELLED" ? "cancelled" : (t.status || "ORDERED").toLowerCase()} className="ml-auto">
-                    {t.status === "CANCELLED" ? "Cancelled" : t.status === "DONE" ? "Done" : t.status === "FOLLOW_UP_NEEDED" ? "Needs follow-up" : "Ordered"}
-                  </Badge>
-                  {t.status !== "CANCELLED" && (
-                    <div className="flex items-center gap-1">
-                      <select
-                        value={t.status || "ORDERED"}
-                        onChange={(e) => { if (t.id) handleUpdateTestStatus(t.id, e.target.value); }}
-                        className="text-xs border border-slate-200 rounded px-2 py-1"
-                      >
-                        <option value="ORDERED">Ordered</option>
-                        <option value="DONE">Done</option>
-                        <option value="FOLLOW_UP_NEEDED">Needs follow-up</option>
-                      </select>
-                      <button type="button" onClick={() => { if (t.id) handleCancelTest(t.id); }} className="text-red-600 hover:text-red-700 text-sm">Cancel</button>
-                    </div>
-                  )}
-                </li>
-              ))}
-            </ul>
-          )}
-          {!showTestForm ? (
-            <button
-              type="button"
-              onClick={() => setShowTestForm(true)}
-              className="flex items-center gap-2 text-sm font-medium text-primary hover:text-primary/80"
-            >
-              <span className="material-icons text-lg">add_circle</span>
-              Add test
-            </button>
-          ) : (
-            <form onSubmit={handleAddTest} className="mt-4 p-4 bg-white rounded-lg border border-slate-200">
-              <div className="flex flex-wrap gap-3">
-                <input
-                  type="text"
-                  value={testForm.name}
-                  onChange={(e) => setTestForm((p) => ({ ...p, name: e.target.value }))}
-                  placeholder={consultation?.requiresLabTest ? "e.g. Full blood count" : "e.g. Blood count"}
-                  required
-                  className="flex-1 min-w-[180px] px-4 py-2.5 border border-slate-200 rounded-lg focus:ring-2 focus:ring-primary outline-none"
-                />
-                <input
-                  type="text"
-                  value={testForm.description}
-                  onChange={(e) => setTestForm((p) => ({ ...p, description: e.target.value }))}
-                  placeholder="Description (optional)"
-                  className="flex-1 min-w-[180px] px-4 py-2.5 border border-slate-200 rounded-lg focus:ring-2 focus:ring-primary outline-none"
-                />
-                <div className="flex gap-2">
-                  <button
-                    type="button"
-                    onClick={() => { setShowTestForm(false); setTestForm({ name: "", description: "" }); }}
-                    className="px-4 py-2.5 border border-slate-200 rounded-lg text-slate-600 hover:bg-slate-50"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="submit"
-                    disabled={submitting || !testForm.name?.trim()}
-                    className="px-4 py-2.5 bg-slate-700 text-white font-medium rounded-lg hover:bg-slate-800 disabled:opacity-60"
-                  >
-                    Add test
-                  </button>
-                </div>
-              </div>
-            </form>
-          )}
-        </div>
-      )}
-
-      {/* Step 3: Prescription — add medications one by one (like lab tests) */}
-      {canWritePrescription && (
-        <div className="mb-8 p-6 bg-slate-50 border border-slate-200 rounded-xl">
-          <h2 className="text-lg font-semibold text-slate-900 mb-2">
-            3. Prescription — medications {medications.length >= 1 && <span className="text-green-600 text-sm font-normal">✓</span>}
-          </h2>
-          <p className="text-sm text-slate-600 mb-4">
-            Add each medication. You can add as many as needed, then create the prescription.
+            {hasPrescription
+              ? "You can add or remove medications even after the consultation. The prescription is updated automatically."
+              : "Add medications with or without adding tests (tests are optional, below). Add each medication, then create the prescription."}
           </p>
           {error && (
             <div className="mb-4 bg-red-50 border border-red-200 rounded-lg p-3 text-red-700 text-sm">{error}</div>
           )}
           {medications.length > 0 && (
             <ul className="mb-4 space-y-2">
-              {medications.map((med, index) => (
-                <li key={index} className="flex items-center gap-2 text-slate-700">
+              {medications.map((med) => (
+                <li key={med.id ?? med.medication ?? Math.random()} className="flex items-center gap-2 text-slate-700">
                   <span className="material-icons text-green-600 text-lg">check_circle</span>
                   <span className="font-medium">{med.medication}</span>
                   <span className="text-slate-500">— {formatDosage(med)}, {formatFrequency(med)}</span>
                   {med.instructions && <span className="text-slate-500">({med.instructions})</span>}
-                  <button type="button" onClick={() => removeMedication(index)} className="ml-auto text-red-600 hover:text-red-700 text-sm">Remove</button>
+                  <button type="button" onClick={() => handleRemoveMedication(med)} className="ml-auto text-red-600 hover:text-red-700 text-sm">Remove</button>
                 </li>
               ))}
             </ul>
@@ -888,17 +939,187 @@ function CreatePrescription() {
               <button
                 type="submit"
                 disabled={
+                  submitting ||
                   !medicationForm.medication?.trim() ||
                   !medicationForm.dosageAmount?.trim() ||
                   (medicationForm.frequency === "OTHER" && !medicationForm.frequencyOther?.trim())
                 }
                 className="px-4 py-2.5 bg-slate-700 text-white font-medium rounded-lg hover:bg-slate-800 disabled:opacity-60"
               >
-                Add medication
+                {submitting ? "Adding…" : "Add medication"}
               </button>
             </div>
           </form>
           )}
+          {!hasPrescription && medications.length > 0 && (
+            <form onSubmit={handleCreatePrescription} className="mt-6 pt-4 border-t border-slate-200">
+              <button
+                type="submit"
+                disabled={submitting}
+                className="px-6 py-2.5 bg-primary text-white font-semibold rounded-lg hover:bg-primary/90 disabled:opacity-60"
+              >
+                {submitting ? "Creating…" : "Create prescription"}
+              </button>
+            </form>
+          )}
+        </div>
+      )}
+
+      {/* Step 3: Add tests (optional — medications above do not require tests) */}
+      {!isClosed && consultation && (
+        <div className="mb-8 p-6 bg-slate-50 border border-slate-200 rounded-xl">
+          <h2 className="text-lg font-semibold text-slate-900 mb-2">
+            3. {consultation.requiresLabTest ? "Lab test orders" : "Medical tests (optional)"} {activeTests.length >= 1 && <span className="text-green-600 text-sm font-normal">✓</span>}
+          </h2>
+          <p className="text-sm text-slate-600 mb-4">
+            {consultation.requiresLabTest
+              ? "Add lab tests to order. You can already add medications above; add tests here if needed."
+              : "Add tests if needed (optional). Medications above do not require adding any test."}
+          </p>
+          {tests.length > 0 && (
+            <ul className="mb-4 space-y-2">
+              {tests.map((t) => (
+                <li key={t.id} className={`flex items-center gap-2 text-slate-700 ${t.status === "CANCELLED" ? "opacity-60" : ""}`}>
+                  {t.status === "CANCELLED" ? (
+                    <span className="material-icons text-slate-400 text-lg">cancel</span>
+                  ) : (
+                    <span className="material-icons text-green-600 text-lg">check_circle</span>
+                  )}
+                  <span className="font-medium">{t.name}</span>
+                  {t.description && <span className="text-slate-500">— {t.description}</span>}
+                  <Badge variant={t.status === "CANCELLED" ? "cancelled" : (t.status || "ORDERED").toLowerCase()} className="ml-auto">
+                    {t.status === "CANCELLED" ? "Cancelled" : t.status === "DONE" ? "Done" : t.status === "FOLLOW_UP_NEEDED" ? "Needs follow-up" : "Ordered"}
+                  </Badge>
+                  {t.status !== "CANCELLED" && (
+                    <div className="flex items-center gap-1">
+                      {updatingTestId === t.id ? (
+                        <span className="text-xs text-slate-500 italic">Updating…</span>
+                      ) : (
+                        <>
+                          <select
+                            value={t.status || "ORDERED"}
+                            onChange={(e) => { if (t.id) handleUpdateTestStatus(t.id, e.target.value); }}
+                            className="text-xs border border-slate-200 rounded px-2 py-1"
+                          >
+                            <option value="ORDERED">Ordered</option>
+                            <option value="DONE">Done</option>
+                            <option value="FOLLOW_UP_NEEDED">Needs follow-up</option>
+                          </select>
+                          <button type="button" onClick={() => { if (t.id) handleCancelTest(t.id); }} className="text-red-600 hover:text-red-700 text-sm">Cancel</button>
+                        </>
+                      )}
+                    </div>
+                  )}
+                </li>
+              ))}
+            </ul>
+          )}
+          {!showTestForm ? (
+            <button
+              type="button"
+              onClick={() => setShowTestForm(true)}
+              className="flex items-center gap-2 text-sm font-medium text-primary hover:text-primary/80"
+            >
+              <span className="material-icons text-lg">add_circle</span>
+              Add test
+            </button>
+          ) : (
+            <form onSubmit={handleAddTest} className="mt-4 p-4 bg-white rounded-lg border border-slate-200">
+              <div className="flex flex-wrap gap-3">
+                <input
+                  type="text"
+                  value={testForm.name}
+                  onChange={(e) => setTestForm((p) => ({ ...p, name: e.target.value }))}
+                  placeholder={consultation?.requiresLabTest ? "e.g. Full blood count" : "e.g. Blood count"}
+                  required
+                  className="flex-1 min-w-[180px] px-4 py-2.5 border border-slate-200 rounded-lg focus:ring-2 focus:ring-primary outline-none"
+                />
+                <input
+                  type="text"
+                  value={testForm.description}
+                  onChange={(e) => setTestForm((p) => ({ ...p, description: e.target.value }))}
+                  placeholder="Description (optional)"
+                  className="flex-1 min-w-[180px] px-4 py-2.5 border border-slate-200 rounded-lg focus:ring-2 focus:ring-primary outline-none"
+                />
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => { setShowTestForm(false); setTestForm({ name: "", description: "" }); }}
+                    className="px-4 py-2.5 border border-slate-200 rounded-lg text-slate-600 hover:bg-slate-50"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={submitting || !testForm.name?.trim()}
+                    className="px-4 py-2.5 bg-slate-700 text-white font-medium rounded-lg hover:bg-slate-800 disabled:opacity-60"
+                  >
+                    Add test
+                  </button>
+                </div>
+              </div>
+            </form>
+          )}
+        </div>
+      )}
+
+      {/* Schedule follow-up when consultation or tests indicate follow-up — below medications */}
+      {needsFollowUp && details?.appointment?.patientId && (
+        <div className="mb-8 p-6 bg-emerald-50 border border-emerald-200 rounded-xl">
+          <h2 className="text-lg font-semibold text-slate-900 mb-4 flex items-center gap-2">
+            <span className="material-icons text-emerald-600">event</span>
+            Schedule follow-up
+          </h2>
+          <p className="text-sm text-slate-600 mb-4">Book the next appointment for this patient on your schedule.</p>
+          <div className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1">Date</label>
+              <input
+                type="date"
+                value={followUpDate}
+                onChange={(e) => setFollowUpDate(e.target.value)}
+                min={new Date().toISOString().slice(0, 10)}
+                className="w-full max-w-xs px-4 py-2.5 border border-slate-200 rounded-lg focus:ring-2 focus:ring-primary outline-none"
+              />
+            </div>
+            {followUpDate && (
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-2">Time slot</label>
+                {followUpSlotsLoading ? (
+                  <p className="text-slate-500 text-sm">Loading slots…</p>
+                ) : followUpSlots.length === 0 ? (
+                  <p className="text-slate-500 text-sm">No slots available on this date.</p>
+                ) : (
+                  <div className="flex flex-wrap gap-2">
+                    {followUpSlots.map((slot) => (
+                      <button
+                        key={`${slot.scheduleId}-${slot.start}`}
+                        type="button"
+                        onClick={() => setSelectedFollowUpSlot(slot)}
+                        className={`px-4 py-2 rounded-lg border text-sm font-medium ${
+                          selectedFollowUpSlot === slot
+                            ? "bg-primary text-white border-primary"
+                            : "bg-white text-slate-700 border-slate-200 hover:border-primary hover:bg-primary/5"
+                        }`}
+                      >
+                        {new Date(slot.start).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+            {selectedFollowUpSlot && (
+              <button
+                type="button"
+                onClick={handleScheduleFollowUp}
+                disabled={followUpScheduling}
+                className="px-6 py-2.5 bg-emerald-600 text-white font-semibold rounded-lg hover:bg-emerald-700 disabled:opacity-60"
+              >
+                {followUpScheduling ? "Scheduling…" : "Schedule follow-up"}
+              </button>
+            )}
+          </div>
         </div>
       )}
     </div>

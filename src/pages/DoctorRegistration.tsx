@@ -45,8 +45,8 @@ function DoctorRegistration() {
         licenseNumber: formData.license_number || null,
         practiceDescription: formData.practice_description || null,
       });
-      toast.success("Doctor account created! Please sign in.");
-      navigate("/", { replace: true });
+      toast.success("Doctor account created! Check your email for the verification link.");
+      navigate("/account-created", { replace: true, state: { email: (formData.email || "").trim() } });
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Registration failed";
       setError(msg);

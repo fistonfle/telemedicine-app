@@ -2,11 +2,14 @@ import { ReactNode } from "react";
 import { Routes, Route, Navigate } from "react-router-dom";
 import SignUp from "./pages/SignUp";
 import Login from "./pages/Login";
+import VerifyEmail from "./pages/VerifyEmail";
+import AccountCreated from "./pages/AccountCreated";
 import DoctorRegistration from "./pages/DoctorRegistration";
 import PatientLayout from "./components/layout/PatientLayout";
 import DoctorLayout from "./components/layout/DoctorLayout";
 import PatientDashboard from "./pages/PatientDashboard";
 import PatientAppointments from "./pages/PatientAppointments";
+import PatientAppointmentDetail from "./pages/PatientAppointmentDetail";
 import BookAppointment from "./pages/BookAppointment";
 import ConsultationHistory from "./pages/ConsultationHistory";
 import ProfileSettings from "./pages/ProfileSettings";
@@ -29,6 +32,8 @@ function App() {
     <Routes>
       <Route path="/" element={<Login />} />
       <Route path="/signup" element={<SignUp />} />
+      <Route path="/verify-email" element={<VerifyEmail />} />
+      <Route path="/account-created" element={<AccountCreated />} />
       <Route path="/register/doctor" element={<DoctorRegistration />} />
       <Route
         path="/patient"
@@ -40,6 +45,7 @@ function App() {
       >
         <Route index element={<PatientDashboard />} />
         <Route path="appointments" element={<PatientAppointments />} />
+        <Route path="appointments/:id" element={<PatientAppointmentDetail />} />
         <Route path="book" element={<BookAppointment />} />
         <Route path="prescriptions" element={<Prescriptions />} />
         <Route path="history" element={<ConsultationHistory />} />

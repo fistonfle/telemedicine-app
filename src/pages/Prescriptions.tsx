@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { Link } from "react-router-dom";
 import { useAppDispatch, useAppSelector } from "../store";
 import Badge from "../components/ui/Badge";
 import { fetchPrescriptions } from "../store/slices/patientSlice";
@@ -107,7 +108,9 @@ function Prescriptions() {
           <div className="p-12 text-center text-slate-500">
             <span className="material-icons text-4xl mb-4 block text-slate-300">medication</span>
             <p className="font-medium">No prescriptions yet</p>
-            <p className="text-sm mt-1">Prescriptions from your doctor will appear here after your appointments.</p>
+            <p className="text-sm mt-1">
+              Prescriptions appear here after a doctor creates one from your visit (Consultation → Prescription). If you’ve had a visit and expected a prescription, ask your doctor to add medications and create the prescription from the visit page.
+            </p>
           </div>
         ) : (
         <div className="overflow-x-auto">
@@ -128,6 +131,9 @@ function Prescriptions() {
                 </th>
                 <th className="text-left py-4 px-6 text-xs font-semibold text-slate-500 uppercase tracking-wider">
                   Status
+                </th>
+                <th className="text-left py-4 px-6 text-xs font-semibold text-slate-500 uppercase tracking-wider">
+                  Visit
                 </th>
               </tr>
             </thead>
@@ -174,6 +180,19 @@ function Prescriptions() {
                         ? "Processing"
                         : "Out of refills"}
                     </Badge>
+                  </td>
+                  <td className="py-4 px-6">
+                    {rx.appointmentId ? (
+                      <Link
+                        to={`/patient/appointments/${rx.appointmentId}`}
+                        className="inline-flex items-center gap-1.5 text-sm font-medium text-primary hover:underline"
+                      >
+                        <span className="material-icons text-lg">event</span>
+                        View appointment
+                      </Link>
+                    ) : (
+                      <span className="text-slate-400 text-sm">—</span>
+                    )}
                   </td>
                 </tr>
               ))}

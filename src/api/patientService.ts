@@ -6,6 +6,8 @@ import type {
   Consultation,
   ConsultationStats,
   PrescriptionRow,
+  ConsultationSummary,
+  PatientAppointmentLink,
 } from "../types";
 
 function formatAppointmentDate(iso: string | undefined): string {
@@ -14,13 +16,8 @@ function formatAppointmentDate(iso: string | undefined): string {
   return d.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
 }
 
-export async function getPatientAppointments(options?: { page?: number; size?: number }): Promise<PatientAppointment[]> {
-  const params = new URLSearchParams();
-  if (options?.page != null) params.set("page", String(options.page));
-  if (options?.size != null) params.set("size", String(options.size));
-  const q = params.toString() ? `?${params.toString()}` : "";
-  const list = await fetchApi<Record<string, unknown>[]>(`/api/patient/appointments${q}`);
-  return (list ?? []).map((a) => ({
+function mapAppointmentToPatient(a: Record<string, unknown>): PatientAppointment {
+  return {
     id: a.id,
     doctor: (a.doctorName as string) ?? "—",
     email: "",
@@ -29,7 +26,80 @@ export async function getPatientAppointments(options?: { page?: number; size?: n
     date: formatAppointmentDate((a.appointmentDate as string) ?? (a.appointment_date as string)),
     slot: String((a.appointmentNumber as string) ?? (a.assignedNumber as string) ?? "—"),
     status: ((a.status as string) || "PENDING").toLowerCase(),
-  }));
+    isFollowUp: a.isFollowUp === true,
+  };
+}
+
+export async function getPatientAppointments(options?: { page?: number; size?: number }): Promise<PatientAppointment[]> {
+  const params = new URLSearchParams();
+  if (options?.page != null) params.set("page", String(options.page));
+  if (options?.size != null) params.set("size", String(options.size));
+  const q = params.toString() ? `?${params.toString()}` : "";
+  const list = await fetchApi<Record<string, unknown>[]>(`/api/patient/appointments${q}`);
+  return (list ?? []).map(mapAppointmentToPatient);
+}
+
+function mapConsultationSummary(c: Record<string, unknown> | null | undefined): ConsultationSummary | null {
+  if (!c || typeof c !== "object") return null;
+  return {
+    diagnosis: (c.diagnosis as string) ?? null,
+    notes: (c.notes as string) ?? null,
+    temperatureCelsius: c.temperatureCelsius != null ? Number(c.temperatureCelsius) : null,
+    weightKg: c.weightKg != null ? Number(c.weightKg) : null,
+    heightCm: c.heightCm != null ? Number(c.heightCm) : null,
+    bloodPressureSystolic: c.bloodPressureSystolic != null ? Number(c.bloodPressureSystolic) : null,
+    bloodPressureDiastolic: c.bloodPressureDiastolic != null ? Number(c.bloodPressureDiastolic) : null,
+    heartRateBpm: c.heartRateBpm != null ? Number(c.heartRateBpm) : null,
+    respiratoryRatePerMin: c.respiratoryRatePerMin != null ? Number(c.respiratoryRatePerMin) : null,
+    oxygenSaturation: c.oxygenSaturation != null ? Number(c.oxygenSaturation) : null,
+    requiresLabTest: c.requiresLabTest === true,
+    labResultsSameDay: c.labResultsSameDay === true,
+    labRequiresFollowUp: c.labRequiresFollowUp === true,
+  };
+}
+
+function mapAppointmentLink(l: Record<string, unknown> | null | undefined): PatientAppointmentLink | null {
+  if (!l || typeof l !== "object" || l.id == null) return null;
+  return {
+    id: String(l.id),
+    appointmentDate: (l.appointmentDate as string) ?? null,
+    slot: l.slot != null ? Number(l.slot) : null,
+  };
+}
+
+export async function getPatientAppointment(id: string): Promise<PatientAppointment> {
+  const raw = await fetchApi<Record<string, unknown>>(`/api/patient/appointments/${id}`);
+  if (!raw) throw new Error("Appointment not found");
+  const payload = raw as {
+    appointment?: Record<string, unknown>;
+    consultationSummary?: Record<string, unknown> | null;
+    prescriptionNote?: string | null;
+    parentAppointment?: Record<string, unknown> | null;
+    childAppointment?: Record<string, unknown> | null;
+  };
+  const a =
+    payload.appointment && typeof payload.appointment === "object"
+      ? {
+          ...payload.appointment,
+          prescriptionNote: payload.prescriptionNote,
+          consultationSummary: payload.consultationSummary,
+          parentAppointment: payload.parentAppointment,
+          childAppointment: payload.childAppointment,
+        }
+      : {
+          ...raw,
+          prescriptionNote: payload.prescriptionNote,
+          consultationSummary: payload.consultationSummary,
+          parentAppointment: payload.parentAppointment,
+          childAppointment: payload.childAppointment,
+        };
+  return {
+    ...mapAppointmentToPatient(a as Record<string, unknown>),
+    prescriptionNote: (a.prescriptionNote as string) ?? null,
+    consultationSummary: mapConsultationSummary(a.consultationSummary as Record<string, unknown> | null | undefined),
+    parentAppointment: mapAppointmentLink(a.parentAppointment as Record<string, unknown> | null | undefined),
+    childAppointment: mapAppointmentLink(a.childAppointment as Record<string, unknown> | null | undefined),
+  };
 }
 
 export async function getPatientStats(): Promise<PatientStats> {
@@ -60,12 +130,26 @@ export async function getConsultations(search?: string, options?: { page?: numbe
     const d = c.consultationDate ? new Date(c.consultationDate as string) : null;
     return {
       id: c.id,
+      appointmentId: c.appointmentId,
       doctor: c.doctorName ? `Dr. ${c.doctorName}` : "—",
       specialty: "",
       date: d ? d.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }) : "—",
       time: d ? d.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" }) : "—",
-      diagnosis: (c.diagnosis as string) || (c.notes as string) || "—",
+      diagnosis: (c.diagnosis as string) || "—",
+      notes: (c.notes as string) ?? null,
       status: "completed",
+      labRequiresFollowUp: c.labRequiresFollowUp === true,
+      requiresLabTest: c.requiresLabTest === true,
+      labResultsSameDay: c.labResultsSameDay === true,
+      prescriptionNote: (c.prescriptionNote as string) ?? null,
+      temperatureCelsius: c.temperatureCelsius != null ? Number(c.temperatureCelsius) : null,
+      weightKg: c.weightKg != null ? Number(c.weightKg) : null,
+      heightCm: c.heightCm != null ? Number(c.heightCm) : null,
+      bloodPressureSystolic: c.bloodPressureSystolic != null ? Number(c.bloodPressureSystolic) : null,
+      bloodPressureDiastolic: c.bloodPressureDiastolic != null ? Number(c.bloodPressureDiastolic) : null,
+      heartRateBpm: c.heartRateBpm != null ? Number(c.heartRateBpm) : null,
+      respiratoryRatePerMin: c.respiratoryRatePerMin != null ? Number(c.respiratoryRatePerMin) : null,
+      oxygenSaturation: c.oxygenSaturation != null ? Number(c.oxygenSaturation) : null,
     };
   });
 }
@@ -75,18 +159,31 @@ export async function getConsultationStats(): Promise<ConsultationStats> {
   return { total: r?.total ?? 0, recent: r?.recent ?? 0, avgRating: r?.avgRating ?? "—" };
 }
 
+function normalizePrescriptionsList(raw: unknown): Record<string, unknown>[] {
+  if (Array.isArray(raw)) return raw;
+  if (raw && typeof raw === "object") {
+    if ("data" in raw && Array.isArray((raw as { data: unknown }).data))
+      return (raw as { data: Record<string, unknown>[] }).data;
+    if ("content" in raw && Array.isArray((raw as { content: unknown }).content))
+      return (raw as { content: Record<string, unknown>[] }).content;
+  }
+  return [];
+}
+
 export async function getPrescriptions(options?: { page?: number; size?: number }): Promise<PrescriptionRow[]> {
   const params = new URLSearchParams();
   if (options?.page != null) params.set("page", String(options.page));
   if (options?.size != null) params.set("size", String(options.size));
   const q = params.toString() ? `?${params.toString()}` : "";
-  const list = await fetchApi<Record<string, unknown>[]>(`/api/patient/prescriptions${q}`);
+  const raw = await fetchApi<unknown>(`/api/patient/prescriptions${q}`);
+  const list = normalizePrescriptionsList(raw);
   const rows: PrescriptionRow[] = [];
-  for (const p of list ?? []) {
+  for (const p of list) {
     const note = ((p.note as string) || "Prescription").trim();
     const doctor = p.doctorName
       ? ((p.doctorName as string).startsWith("Dr.") ? (p.doctorName as string) : `Dr. ${p.doctorName}`)
       : "—";
+    const appointmentId = p.appointmentId != null ? String(p.appointmentId) : null;
     const lines = note
       .split("\n")
       .map((l) => l.trim())
@@ -100,6 +197,7 @@ export async function getPrescriptions(options?: { page?: number; size?: number 
         doctor,
         expires: "—",
         status: "ready",
+        appointmentId,
       });
     } else {
       for (let i = 0; i < lines.length; i++) {
@@ -115,6 +213,7 @@ export async function getPrescriptions(options?: { page?: number; size?: number 
           doctor,
           expires: "—",
           status: "ready",
+          appointmentId,
         });
       }
     }

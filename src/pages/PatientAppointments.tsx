@@ -106,12 +106,15 @@ function PatientAppointments() {
                 <th className="text-left py-4 px-6 text-sm font-semibold text-slate-600">
                   Status
                 </th>
+                <th className="text-right py-4 px-6 text-sm font-semibold text-slate-600">
+                  Actions
+                </th>
               </tr>
             </thead>
             <tbody>
               {filtered.length === 0 ? (
                 <tr>
-                  <td colSpan={4} className="py-12 text-center text-slate-500">
+                  <td colSpan={5} className="py-12 text-center text-slate-500">
                     <span className="material-icons text-4xl mb-2 block text-slate-300">event_busy</span>
                     <p className="font-medium">No {activeTab} appointments</p>
                     <p className="text-sm mt-1">
@@ -162,7 +165,24 @@ function PatientAppointments() {
                       {apt.date}, Slot {apt.slot}
                     </td>
                     <td className="py-4 px-6">
-                      <Badge variant={apt.status}>{apt.status}</Badge>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <Badge variant={apt.status}>{apt.status}</Badge>
+                        {apt.isFollowUp && (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium rounded-md bg-sky-100 text-sky-800">
+                            <span className="material-icons text-sm">replay</span>
+                            Follow-up
+                          </span>
+                        )}
+                      </div>
+                    </td>
+                    <td className="py-4 px-6 text-right">
+                      <Link
+                        to={`/patient/appointments/${apt.id}`}
+                        className="inline-flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-primary border border-primary/30 rounded-lg hover:bg-primary/10 transition-colors"
+                      >
+                        <span className="material-icons text-lg">visibility</span>
+                        View
+                      </Link>
                     </td>
                   </tr>
                 ))

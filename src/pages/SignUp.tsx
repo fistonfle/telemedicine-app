@@ -33,8 +33,8 @@ function SignUp() {
         }),
       };
       await signup(data);
-      toast.success("Account created! Please sign in.");
-      navigate("/", { replace: true });
+      toast.success("Account created! Check your email for the verification link.");
+      navigate("/account-created", { replace: true, state: { email: data.email } });
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Sign up failed";
       setError(msg);

@@ -91,8 +91,8 @@ function SelectDateTime({ doctor, slots = [], workingHours, loading, selectedDat
   const slotList = Array.isArray(slots) ? slots : [];
   const assignedSlot = slotList.length ? (selectedSlot ?? slotList[0]) : null;
   const handleContinue = () => {
-    const dateStr = `${MONTHS[currentMonth - 1]} ${selectedDay}, ${currentYear}`;
-    onSelect(dateStr, assignedSlot);
+    const dateObj = new Date(currentYear, currentMonth - 1, selectedDay);
+    onSelect(dateObj, assignedSlot);
   };
 
   return (
