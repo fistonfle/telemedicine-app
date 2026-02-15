@@ -97,59 +97,143 @@ function ConsultationHistory() {
           </div>
         ) : (
         <div className="divide-y divide-slate-100">
-          {consultations.map((c: Consultation) => (
-            <div
-              key={c.id}
-              className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-6 hover:bg-slate-50/50"
-            >
-              <div className="flex gap-4">
-                <div className="w-12 h-12 rounded-full bg-primary/20 flex items-center justify-center text-primary font-bold shrink-0">
-                  {c.doctor
-                    .replace("Dr. ", "")
-                    .split(" ")
-                    .map((n) => n[0])
-                    .join("")}
-                </div>
-                <div className="min-w-0 flex-1">
-                  <p className="font-semibold text-slate-900">{c.doctor}</p>
-                  <p className="text-sm text-slate-500">{c.specialty}</p>
-                  <p className="text-sm text-slate-600 mt-1">
-                    {c.date}, {c.time}
-                  </p>
-                  <p className="text-sm text-slate-500 mt-0.5">{c.diagnosis}</p>
-                  {c.prescriptionNote && c.prescriptionNote.trim() && (
-                    <div className="mt-3 p-3 bg-slate-50 rounded-lg border border-slate-100">
-                      <p className="text-xs font-medium text-slate-500 uppercase tracking-wide mb-1.5">Prescription</p>
-                      <ul className="text-sm text-slate-700 space-y-0.5">
-                        {c.prescriptionNote
-                          .split("\n")
-                          .map((line) => line.trim())
-                          .filter(Boolean)
-                          .map((line, i) => (
-                            <li key={i} className="flex items-start gap-2">
-                              <span className="text-primary mt-0.5">•</span>
-                              <span>{line}</span>
-                            </li>
-                          ))}
-                      </ul>
+          {consultations.map((c: Consultation) => {
+            const hasVitals =
+              c.temperatureCelsius != null ||
+              c.weightKg != null ||
+              c.heightCm != null ||
+              (c.bloodPressureSystolic != null || c.bloodPressureDiastolic != null) ||
+              c.heartRateBpm != null ||
+              c.respiratoryRatePerMin != null ||
+              c.oxygenSaturation != null;
+            return (
+              <div
+                key={c.id}
+                className="p-6 hover:bg-slate-50/50"
+              >
+                <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
+                  <div className="flex gap-4 min-w-0 flex-1">
+                    <div className="w-12 h-12 rounded-full bg-primary/20 flex items-center justify-center text-primary font-bold shrink-0">
+                      {c.doctor
+                        .replace("Dr. ", "")
+                        .split(" ")
+                        .map((n) => n[0])
+                        .join("")}
                     </div>
-                  )}
+                    <div className="min-w-0 flex-1 space-y-3">
+                      <div>
+                        <p className="font-semibold text-slate-900">{c.doctor}</p>
+                        <p className="text-sm text-slate-500">{c.specialty || "General"}</p>
+                        <p className="text-sm text-slate-600 mt-0.5">
+                          {c.date}, {c.time}
+                          {c.appointmentId && (
+                            <Link
+                              to={`/patient/appointments/${c.appointmentId}`}
+                              className="ml-2 text-primary text-sm font-medium hover:underline"
+                            >
+                              View appointment
+                            </Link>
+                          )}
+                        </p>
+                      </div>
+
+                      {c.diagnosis && c.diagnosis !== "—" && (
+                        <div>
+                          <p className="text-xs font-medium text-slate-500 uppercase tracking-wide">Diagnosis</p>
+                          <p className="text-sm text-slate-700 mt-0.5">{c.diagnosis}</p>
+                        </div>
+                      )}
+                      {c.notes && c.notes.trim() && (
+                        <div>
+                          <p className="text-xs font-medium text-slate-500 uppercase tracking-wide">Notes</p>
+                          <p className="text-sm text-slate-600 mt-0.5 whitespace-pre-wrap">{c.notes.trim()}</p>
+                        </div>
+                      )}
+
+                      {hasVitals && (
+                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-4 gap-y-1 text-sm">
+                          {c.temperatureCelsius != null && (
+                            <span className="text-slate-600">Temp: <strong>{c.temperatureCelsius}°C</strong></span>
+                          )}
+                          {c.weightKg != null && (
+                            <span className="text-slate-600">Weight: <strong>{c.weightKg} kg</strong></span>
+                          )}
+                          {c.heightCm != null && (
+                            <span className="text-slate-600">Height: <strong>{c.heightCm} cm</strong></span>
+                          )}
+                          {(c.bloodPressureSystolic != null || c.bloodPressureDiastolic != null) && (
+                            <span className="text-slate-600">
+                              BP: <strong>{c.bloodPressureSystolic ?? "—"}/{c.bloodPressureDiastolic ?? "—"} mmHg</strong>
+                            </span>
+                          )}
+                          {c.heartRateBpm != null && (
+                            <span className="text-slate-600">HR: <strong>{c.heartRateBpm} bpm</strong></span>
+                          )}
+                          {c.respiratoryRatePerMin != null && (
+                            <span className="text-slate-600">RR: <strong>{c.respiratoryRatePerMin}/min</strong></span>
+                          )}
+                          {c.oxygenSaturation != null && (
+                            <span className="text-slate-600">SpO₂: <strong>{c.oxygenSaturation}%</strong></span>
+                          )}
+                        </div>
+                      )}
+
+                      {(c.requiresLabTest || c.labResultsSameDay || c.labRequiresFollowUp) && (
+                        <div className="flex flex-wrap gap-2">
+                          {c.requiresLabTest && (
+                            <span className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium rounded-md bg-slate-100 text-slate-700">
+                              <span className="material-icons text-sm">science</span>
+                              Lab tests ordered
+                            </span>
+                          )}
+                          {c.labResultsSameDay && (
+                            <span className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium rounded-md bg-emerald-100 text-emerald-800">
+                              Same-day results
+                            </span>
+                          )}
+                          {c.labRequiresFollowUp && (
+                            <span className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium rounded-md bg-amber-100 text-amber-800">
+                              Follow-up for results
+                            </span>
+                          )}
+                        </div>
+                      )}
+
+                      {c.prescriptionNote && c.prescriptionNote.trim() && (
+                        <div className="p-3 bg-slate-50 rounded-lg border border-slate-100">
+                          <p className="text-xs font-medium text-slate-500 uppercase tracking-wide mb-1.5">Prescription</p>
+                          <ul className="text-sm text-slate-700 space-y-0.5">
+                            {c.prescriptionNote
+                              .split("\n")
+                              .map((line) => line.trim())
+                              .filter(Boolean)
+                              .map((line, i) => (
+                                <li key={i} className="flex items-start gap-2">
+                                  <span className="text-primary mt-0.5">•</span>
+                                  <span>{line}</span>
+                                </li>
+                              ))}
+                          </ul>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                  <div className="shrink-0 flex flex-col items-end gap-2">
+                    {c.labRequiresFollowUp && (
+                      <Link
+                        to="/patient/book"
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-lg bg-amber-100 text-amber-800 hover:bg-amber-200 transition-colors"
+                      >
+                        <span className="material-icons text-lg">event_available</span>
+                        Book follow-up
+                      </Link>
+                    )}
+                    <Badge variant={c.status}>{c.status}</Badge>
+                  </div>
                 </div>
               </div>
-              <div className="shrink-0 flex items-center gap-2">
-                {c.labRequiresFollowUp && (
-                  <Link
-                    to="/patient/book"
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-lg bg-amber-100 text-amber-800 hover:bg-amber-200 transition-colors"
-                  >
-                    <span className="material-icons text-lg">event_available</span>
-                    Book follow-up
-                  </Link>
-                )}
-                <Badge variant={c.status}>{c.status}</Badge>
-              </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
         )}
 

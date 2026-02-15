@@ -74,14 +74,26 @@ export async function getConsultations(search?: string, options?: { page?: numbe
     const d = c.consultationDate ? new Date(c.consultationDate as string) : null;
     return {
       id: c.id,
+      appointmentId: c.appointmentId,
       doctor: c.doctorName ? `Dr. ${c.doctorName}` : "—",
       specialty: "",
       date: d ? d.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }) : "—",
       time: d ? d.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" }) : "—",
-      diagnosis: (c.diagnosis as string) || (c.notes as string) || "—",
+      diagnosis: (c.diagnosis as string) || "—",
+      notes: (c.notes as string) ?? null,
       status: "completed",
       labRequiresFollowUp: c.labRequiresFollowUp === true,
+      requiresLabTest: c.requiresLabTest === true,
+      labResultsSameDay: c.labResultsSameDay === true,
       prescriptionNote: (c.prescriptionNote as string) ?? null,
+      temperatureCelsius: c.temperatureCelsius != null ? Number(c.temperatureCelsius) : null,
+      weightKg: c.weightKg != null ? Number(c.weightKg) : null,
+      heightCm: c.heightCm != null ? Number(c.heightCm) : null,
+      bloodPressureSystolic: c.bloodPressureSystolic != null ? Number(c.bloodPressureSystolic) : null,
+      bloodPressureDiastolic: c.bloodPressureDiastolic != null ? Number(c.bloodPressureDiastolic) : null,
+      heartRateBpm: c.heartRateBpm != null ? Number(c.heartRateBpm) : null,
+      respiratoryRatePerMin: c.respiratoryRatePerMin != null ? Number(c.respiratoryRatePerMin) : null,
+      oxygenSaturation: c.oxygenSaturation != null ? Number(c.oxygenSaturation) : null,
     };
   });
 }

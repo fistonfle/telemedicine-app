@@ -35,16 +35,29 @@ export interface PatientHealth {
 
 export interface Consultation {
   id: string | number;
+  appointmentId?: string | number;
   doctor: string;
   specialty: string;
   date: string;
   time: string;
   diagnosis: string;
+  notes?: string | null;
   status: string;
   /** When true, patient or doctor can create a follow-up appointment. */
   labRequiresFollowUp?: boolean;
+  requiresLabTest?: boolean;
+  labResultsSameDay?: boolean;
   /** Prescription note (medications) for this visit, if any. */
   prescriptionNote?: string | null;
+  /** Vitals (show when present) */
+  temperatureCelsius?: number | null;
+  weightKg?: number | null;
+  heightCm?: number | null;
+  bloodPressureSystolic?: number | null;
+  bloodPressureDiastolic?: number | null;
+  heartRateBpm?: number | null;
+  respiratoryRatePerMin?: number | null;
+  oxygenSaturation?: number | null;
 }
 
 export interface ConsultationStats {
