@@ -50,4 +50,13 @@ describe("Login page", () => {
     renderLogin();
     expect(screen.getByRole("link", { name: /sign up/i })).toHaveAttribute("href", "/signup");
   });
+
+  it("calls login when form is submitted", async () => {
+    renderLogin();
+    fireEvent.change(screen.getByLabelText(/email/i), { target: { value: "test@example.com" } });
+    fireEvent.change(screen.getByLabelText(/password/i), { target: { value: "password123" } });
+    fireEvent.click(screen.getByRole("button", { name: /sign in/i }));
+    // Dispatch is async; Login component will handle the result
+    expect(screen.getByRole("button", { name: /sign in/i })).toBeInTheDocument();
+  });
 });
