@@ -33,6 +33,7 @@ export const createAppointmentThunk = createAsyncThunk(
     try {
       return await bookingService.createAppointment(data);
     } catch (err) {
+      console.log("Big error "+JSON.stringify(err))
       return rejectWithValue(
         (err as Error).message || "Failed to book appointment"
       );

@@ -1,6 +1,6 @@
 import { createSlice, createAsyncThunk } from "@reduxjs/toolkit";
 import * as authService from "../../api/authService";
-import { getStoredToken } from "../../api/client";
+import { getStoredToken } from "../authStorage";
 import type { User, Profile, UpdateProfileData, SignupData } from "../../types";
 
 export const fetchMe = createAsyncThunk(

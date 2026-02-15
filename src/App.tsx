@@ -16,7 +16,7 @@ import DoctorAppointments from "./pages/DoctorAppointments";
 import DoctorSchedule from "./pages/DoctorSchedule";
 import DoctorPatients from "./pages/DoctorPatients";
 import CreatePrescription from "./pages/CreatePrescription";
-import { getStoredToken } from "./api/services";
+import { getStoredToken } from "./store/authStorage";
 
 function ProtectedRoute({ children }: { children: ReactNode }) {
   const token = getStoredToken();
