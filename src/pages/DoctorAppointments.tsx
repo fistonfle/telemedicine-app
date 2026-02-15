@@ -5,13 +5,13 @@ import { Link } from "react-router-dom";
 import Badge from "../components/ui/Badge";
 import { fetchDoctorAppointments, updateAppointmentStatusThunk } from "../store/slices/doctorSlice";
 
-function formatDate(iso: string | undefined): string {
+function formatDate(iso: string | null | undefined): string {
   if (!iso) return "—";
   const d = new Date(iso);
   return d.toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short", year: "numeric" });
 }
 
-function formatTime(iso: string | undefined): string {
+function formatTime(iso: string | null | undefined): string {
   if (!iso) return "";
   return new Date(iso).toLocaleTimeString([], { hour: "numeric", minute: "2-digit", hour12: true });
 }

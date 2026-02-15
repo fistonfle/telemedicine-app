@@ -59,6 +59,23 @@ export async function getDoctorAppointments(): Promise<DoctorAppointment[]> {
   });
 }
 
+export interface ConsultationDetails {
+  id?: string;
+  temperatureCelsius?: number | string;
+  weightKg?: number | string;
+  heightCm?: number | string;
+  bloodPressureSystolic?: number | string;
+  bloodPressureDiastolic?: number | string;
+  heartRateBpm?: number | string;
+  respiratoryRatePerMin?: number | string;
+  oxygenSaturation?: number | string;
+  diagnosis?: string;
+  notes?: string;
+  requiresLabTest?: boolean;
+  labResultsSameDay?: boolean | string;
+  labRequiresFollowUp?: boolean | string;
+}
+
 export interface AppointmentDetails {
   appointment: {
     id: string | number;
@@ -68,9 +85,9 @@ export interface AppointmentDetails {
     status: string;
     appointmentDate?: string;
   } | null;
-  consultation: unknown;
-  tests: unknown[];
-  prescription: unknown;
+  consultation: ConsultationDetails | null;
+  tests: { id?: string; name?: string; description?: string; status?: string }[];
+  prescription: { note?: string } | null;
 }
 
 export async function getAppointmentDetails(
@@ -95,9 +112,9 @@ export async function getAppointmentDetails(
           appointmentDate: a.appointmentDate as string,
         }
       : null,
-    consultation: d.consultation ?? null,
-    tests: d.tests ?? [],
-    prescription: d.prescription ?? null,
+    consultation: (d.consultation as ConsultationDetails) ?? null,
+    tests: (d.tests ?? []) as { id?: string; name?: string; description?: string; status?: string }[],
+    prescription: (d.prescription as { note?: string }) ?? null,
   };
 }
 
@@ -110,6 +127,7 @@ export async function getDoctorAppointment(id: string | number): Promise<DoctorA
     description: "",
     slot: String((a.appointmentNumber as string) ?? (a.assignedNumber as string) ?? "—"),
     status: ((a.status as string) || "PENDING").toLowerCase(),
+    appointmentDate: (a.appointmentDate as string) ?? null,
   };
 }
 

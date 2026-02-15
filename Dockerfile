@@ -1,6 +1,10 @@
 # Build stage
 FROM node:20-alpine AS builder
 
+# VITE_API_URL must be passed at build time (e.g. Render: set env var + use --build-arg)
+ARG VITE_API_URL=
+ENV VITE_API_URL=$VITE_API_URL
+
 WORKDIR /app
 
 COPY package*.json ./
