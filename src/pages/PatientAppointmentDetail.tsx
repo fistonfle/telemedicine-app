@@ -109,6 +109,78 @@ function PatientAppointmentDetail() {
               </div>
             </dl>
 
+            {appointment.consultationSummary && (
+              <div className="pt-4 border-t border-slate-100 space-y-4">
+                <p className="text-sm font-medium text-slate-500">Visit summary</p>
+                {appointment.consultationSummary.diagnosis && appointment.consultationSummary.diagnosis.trim() && (
+                  <div>
+                    <p className="text-xs font-medium text-slate-500 uppercase tracking-wide">Diagnosis</p>
+                    <p className="text-sm text-slate-700 mt-0.5">{appointment.consultationSummary.diagnosis}</p>
+                  </div>
+                )}
+                {appointment.consultationSummary.notes && appointment.consultationSummary.notes.trim() && (
+                  <div>
+                    <p className="text-xs font-medium text-slate-500 uppercase tracking-wide">Notes</p>
+                    <p className="text-sm text-slate-600 mt-0.5 whitespace-pre-wrap">{appointment.consultationSummary.notes.trim()}</p>
+                  </div>
+                )}
+                {(appointment.consultationSummary.temperatureCelsius != null ||
+                  appointment.consultationSummary.weightKg != null ||
+                  appointment.consultationSummary.heightCm != null ||
+                  appointment.consultationSummary.bloodPressureSystolic != null ||
+                  appointment.consultationSummary.bloodPressureDiastolic != null ||
+                  appointment.consultationSummary.heartRateBpm != null ||
+                  appointment.consultationSummary.respiratoryRatePerMin != null ||
+                  appointment.consultationSummary.oxygenSaturation != null) && (
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-4 gap-y-1 text-sm">
+                    {appointment.consultationSummary.temperatureCelsius != null && (
+                      <span className="text-slate-600">Temp: <strong>{appointment.consultationSummary.temperatureCelsius}°C</strong></span>
+                    )}
+                    {appointment.consultationSummary.weightKg != null && (
+                      <span className="text-slate-600">Weight: <strong>{appointment.consultationSummary.weightKg} kg</strong></span>
+                    )}
+                    {appointment.consultationSummary.heightCm != null && (
+                      <span className="text-slate-600">Height: <strong>{appointment.consultationSummary.heightCm} cm</strong></span>
+                    )}
+                    {(appointment.consultationSummary.bloodPressureSystolic != null || appointment.consultationSummary.bloodPressureDiastolic != null) && (
+                      <span className="text-slate-600">
+                        BP: <strong>{appointment.consultationSummary.bloodPressureSystolic ?? "—"}/{appointment.consultationSummary.bloodPressureDiastolic ?? "—"} mmHg</strong>
+                      </span>
+                    )}
+                    {appointment.consultationSummary.heartRateBpm != null && (
+                      <span className="text-slate-600">HR: <strong>{appointment.consultationSummary.heartRateBpm} bpm</strong></span>
+                    )}
+                    {appointment.consultationSummary.respiratoryRatePerMin != null && (
+                      <span className="text-slate-600">RR: <strong>{appointment.consultationSummary.respiratoryRatePerMin}/min</strong></span>
+                    )}
+                    {appointment.consultationSummary.oxygenSaturation != null && (
+                      <span className="text-slate-600">SpO₂: <strong>{appointment.consultationSummary.oxygenSaturation}%</strong></span>
+                    )}
+                  </div>
+                )}
+                {(appointment.consultationSummary.requiresLabTest || appointment.consultationSummary.labResultsSameDay || appointment.consultationSummary.labRequiresFollowUp) && (
+                  <div className="flex flex-wrap gap-2">
+                    {appointment.consultationSummary.requiresLabTest && (
+                      <span className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium rounded-md bg-slate-100 text-slate-700">
+                        <span className="material-icons text-sm">science</span>
+                        Lab tests ordered
+                      </span>
+                    )}
+                    {appointment.consultationSummary.labResultsSameDay && (
+                      <span className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium rounded-md bg-emerald-100 text-emerald-800">
+                        Same-day results
+                      </span>
+                    )}
+                    {appointment.consultationSummary.labRequiresFollowUp && (
+                      <span className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium rounded-md bg-amber-100 text-amber-800">
+                        Follow-up for results
+                      </span>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+
             {appointment.prescriptionNote && appointment.prescriptionNote.trim() && (
               <div className="pt-4 border-t border-slate-100">
                 <p className="text-sm font-medium text-slate-500 mb-2">Prescription</p>

@@ -6,6 +6,7 @@ import type {
   Consultation,
   ConsultationStats,
   PrescriptionRow,
+  ConsultationSummary,
 } from "../types";
 
 function formatAppointmentDate(iso: string | undefined): string {
@@ -37,13 +38,42 @@ export async function getPatientAppointments(options?: { page?: number; size?: n
   return (list ?? []).map(mapAppointmentToPatient);
 }
 
+function mapConsultationSummary(c: Record<string, unknown> | null | undefined): ConsultationSummary | null {
+  if (!c || typeof c !== "object") return null;
+  return {
+    diagnosis: (c.diagnosis as string) ?? null,
+    notes: (c.notes as string) ?? null,
+    temperatureCelsius: c.temperatureCelsius != null ? Number(c.temperatureCelsius) : null,
+    weightKg: c.weightKg != null ? Number(c.weightKg) : null,
+    heightCm: c.heightCm != null ? Number(c.heightCm) : null,
+    bloodPressureSystolic: c.bloodPressureSystolic != null ? Number(c.bloodPressureSystolic) : null,
+    bloodPressureDiastolic: c.bloodPressureDiastolic != null ? Number(c.bloodPressureDiastolic) : null,
+    heartRateBpm: c.heartRateBpm != null ? Number(c.heartRateBpm) : null,
+    respiratoryRatePerMin: c.respiratoryRatePerMin != null ? Number(c.respiratoryRatePerMin) : null,
+    oxygenSaturation: c.oxygenSaturation != null ? Number(c.oxygenSaturation) : null,
+    requiresLabTest: c.requiresLabTest === true,
+    labResultsSameDay: c.labResultsSameDay === true,
+    labRequiresFollowUp: c.labRequiresFollowUp === true,
+  };
+}
+
 export async function getPatientAppointment(id: string): Promise<PatientAppointment> {
   const raw = await fetchApi<Record<string, unknown>>(`/api/patient/appointments/${id}`);
   if (!raw) throw new Error("Appointment not found");
-  const a = "appointment" in raw && raw.appointment && typeof raw.appointment === "object"
-    ? { ...(raw.appointment as Record<string, unknown>), prescriptionNote: (raw as { prescriptionNote?: string | null }).prescriptionNote }
-    : (raw as Record<string, unknown>);
-  return { ...mapAppointmentToPatient(a), prescriptionNote: (a.prescriptionNote as string) ?? null };
+  const payload = raw as {
+    appointment?: Record<string, unknown>;
+    consultationSummary?: Record<string, unknown> | null;
+    prescriptionNote?: string | null;
+  };
+  const a =
+    payload.appointment && typeof payload.appointment === "object"
+      ? { ...payload.appointment, prescriptionNote: payload.prescriptionNote, consultationSummary: payload.consultationSummary }
+      : { ...raw, prescriptionNote: payload.prescriptionNote, consultationSummary: payload.consultationSummary };
+  return {
+    ...mapAppointmentToPatient(a as Record<string, unknown>),
+    prescriptionNote: (a.prescriptionNote as string) ?? null,
+    consultationSummary: mapConsultationSummary(a.consultationSummary as Record<string, unknown> | null | undefined),
+  };
 }
 
 export async function getPatientStats(): Promise<PatientStats> {

@@ -11,6 +11,25 @@ export interface PatientAppointment {
   isFollowUp?: boolean;
   /** Prescription note (medications) for this appointment's visit, if any. Only present when fetching single appointment details. */
   prescriptionNote?: string | null;
+  /** Consultation summary for this appointment (diagnosis, notes, vitals, lab flags). Only present when fetching single appointment details and a consultation exists. */
+  consultationSummary?: ConsultationSummary | null;
+}
+
+/** Summary of a consultation shown on the patient appointment detail page. */
+export interface ConsultationSummary {
+  diagnosis?: string | null;
+  notes?: string | null;
+  temperatureCelsius?: number | null;
+  weightKg?: number | null;
+  heightCm?: number | null;
+  bloodPressureSystolic?: number | null;
+  bloodPressureDiastolic?: number | null;
+  heartRateBpm?: number | null;
+  respiratoryRatePerMin?: number | null;
+  oxygenSaturation?: number | null;
+  requiresLabTest?: boolean | null;
+  labResultsSameDay?: boolean | null;
+  labRequiresFollowUp?: boolean | null;
 }
 
 export interface PatientStats {
