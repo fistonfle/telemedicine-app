@@ -14,9 +14,19 @@ function redirectToLogin() {
   window.location.href = "/";
 }
 
-async function getErrorCode(res: Response): Promise<string | undefined> {
-  const err = (await res.json().catch(() => ({}))) as { error?: string; message?: string };
-  return err.error ?? err.message;
+async function readError(res: Response): Promise<{ code?: string; message?: string }> {
+  // Use clone() so we don't consume the original response body (we may need it later)
+  const r = res.clone();
+
+  // Try JSON first
+  const json = (await r.json().catch(() => null)) as null | { error?: string; message?: string };
+  if (json) {
+    return { code: json.error, message: json.message };
+  }
+
+  // Fallback to text (some backends send plain text for 401/403)
+  const text = await r.text().catch(() => "");
+  return { message: text || undefined };
 }
 
 export async function fetchApi<T = unknown>(
@@ -42,11 +52,19 @@ export async function fetchApi<T = unknown>(
   const initialToken = isAuthCall ? null : (options.token ?? getStoredToken());
   let res = await doFetch(initialToken);
 
-  // If forbidden/unauthorized => check if token expired (skip for auth endpoints)
+  // If forbidden/unauthorized => attempt refresh (skip for auth endpoints)
   if (!isAuthCall && (res.status === 401 || res.status === 403)) {
-    const code = await getErrorCode(res);
+    const { code, message } = await readError(res);
 
-    if (code === "TOKEN_EXPIRED") {
+    // Many backends don't return a stable code; also treat "expired" messages as token expiry
+    const looksExpired =
+      code === "TOKEN_EXPIRED" ||
+      (message?.toLowerCase().includes("expired") ?? false) ||
+      (message?.toLowerCase().includes("jwt") ?? false);
+
+    // If we had a token (meaning it was an authenticated call), try refresh once.
+    // Even if the backend doesn't send TOKEN_EXPIRED, a 401 often means the access token is no longer valid.
+    if (initialToken && (looksExpired || res.status === 401)) {
       try {
         // single-flight refresh: if one is already running, wait for it
         if (!refreshPromise) {
@@ -56,8 +74,6 @@ export async function fetchApi<T = unknown>(
         }
 
         const newAccessToken = await refreshPromise;
-
-        // (optional) ensure storage updated even if backend returns same token
         setStoredToken(newAccessToken);
 
         // retry once with new token
@@ -68,16 +84,14 @@ export async function fetchApi<T = unknown>(
         throw e instanceof Error ? e : new Error("REFRESH_FAILED");
       }
     } else {
-      // not token-expired: treat as real unauthorized/forbidden
-      // (optional) clear if you want
-      // clearStoredAuth();
-      throw new Error(code || "UNAUTHORIZED");
+      // not refreshable: treat as real unauthorized/forbidden
+      throw new Error(code || message || "UNAUTHORIZED");
     }
   }
 
   if (!res.ok) {
-    const code = await getErrorCode(res);
-    throw new Error(code || res.statusText);
+    const { code, message } = await readError(res);
+    throw new Error(code || message || res.statusText);
   }
 
   // if endpoint returns no content
