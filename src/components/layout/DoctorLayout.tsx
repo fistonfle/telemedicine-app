@@ -12,6 +12,12 @@ export default function DoctorLayout() {
     dispatch(fetchMe());
   }, [dispatch]);
 
+  useEffect(() => {
+    if (me?.role === "PATIENT") {
+      navigate("/patient", { replace: true });
+    }
+  }, [me?.role, navigate]);
+
   const navItems = [
     { path: "/doctor", icon: "dashboard", label: "Dashboard" },
     { path: "/doctor/appointments", icon: "event_note", label: "Appointments" },
