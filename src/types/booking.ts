@@ -10,7 +10,7 @@ export interface TimeSlot {
 
 export interface CreateAppointmentData {
   patientId?: string;
-  doctorId?: string;
+  doctorId?: string | number;
   doctor?: Doctor;
   date?: Date | string;
   slot?: TimeSlot;
