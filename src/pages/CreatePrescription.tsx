@@ -11,6 +11,8 @@ import {
   updateTestStatus,
   updateAppointmentStatus,
 } from "../api/services";
+import type { AppointmentDetails } from "../api/doctorService";
+import type { DoctorAppointment } from "../types";
 import { useToast } from "../components/ui/Toast";
 import Badge from "../components/ui/Badge";
 
@@ -61,25 +63,27 @@ function CreatePrescription() {
   const patientIdParam = searchParams.get("patientId");
   const navigate = useNavigate();
 
-  const [appointment, setAppointment] = useState<Record<string, unknown> | null>(null);
-  const [details, setDetails] = useState<Record<string, unknown> | null>(null);
-  const [consultation, setConsultation] = useState<{ id?: string } | null>(null);
-  const [tests, setTests] = useState<unknown[]>([]);
+  const [appointment, setAppointment] = useState<DoctorAppointment | null>(null);
+  const [details, setDetails] = useState<AppointmentDetails | null>(null);
+  const [consultation, setConsultation] = useState<{ id?: string; requiresLabTest?: boolean } | null>(null);
+  const [tests, setTests] = useState<{ id?: string; name?: string; description?: string; status?: string }[]>([]);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [consultationForm, setConsultationForm] = useState({
-    diagnosis: "", notes: "",
-    temperature: "", weight: "", height: "",
+  const [consultationForm, setConsultationForm] = useState<{
+    diagnosis: string; notes: string; temperature: string; weight: string; height: string;
+    bloodPressureSystolic: string; bloodPressureDiastolic: string;
+    heartRate: string; respiratoryRate: string; oxygenSaturation: string;
+    requiresLabTest: boolean | null; labResultsSameDay: boolean | null; labRequiresFollowUp: boolean | null;
+  }>({
+    diagnosis: "", notes: "", temperature: "", weight: "", height: "",
     bloodPressureSystolic: "", bloodPressureDiastolic: "",
     heartRate: "", respiratoryRate: "", oxygenSaturation: "",
-    requiresLabTest: null,
-    labResultsSameDay: null,
-    labRequiresFollowUp: null,
+    requiresLabTest: null, labResultsSameDay: null, labRequiresFollowUp: null,
   });
   const [testForm, setTestForm] = useState({ name: "", description: "" });
   const [showTestForm, setShowTestForm] = useState(false);
-  const [medications, setMedications] = useState<Record<string, unknown>[]>([]);
+  const [medications, setMedications] = useState<{ medication?: string; dosageAmount?: string; dosageUnit?: string; dosageOther?: string; frequency?: string; frequencyOther?: string; instructions?: string; refills?: number; expiresIn?: number }[]>([]);
   const [showMedicationForm, setShowMedicationForm] = useState(false);
   const [medicationForm, setMedicationForm] = useState({
     medication: "",
@@ -101,8 +105,8 @@ function CreatePrescription() {
     try {
       const d = await getAppointmentDetails(appointmentId);
       setDetails(d);
-      if (d?.consultation) setConsultation(d.consultation);
-      if (d?.tests?.length) setTests(d.tests);
+      if (d?.consultation) setConsultation(d.consultation as { id?: string; requiresLabTest?: boolean });
+      if (d?.tests?.length) setTests(d.tests as { id?: string; name?: string; description?: string; status?: string }[]);
       return d;
     } catch {
       return null;
@@ -115,11 +119,11 @@ function CreatePrescription() {
       const d = await loadDetails();
       if (d?.consultation) return d.consultation;
       const c = await getConsultationForAppointment(appointmentId);
-      setConsultation(c);
+      setConsultation(c as { id?: string; requiresLabTest?: boolean });
       return c;
     } catch {
       const c = await getConsultationForAppointment(appointmentId).catch(() => null);
-      if (c) setConsultation(c);
+      if (c) setConsultation(c as { id?: string; requiresLabTest?: boolean });
       return c;
     }
   }, [appointmentId, loadDetails]);
@@ -127,7 +131,7 @@ function CreatePrescription() {
   const loadTests = useCallback(async () => {
     if (!consultation?.id) return;
     const list = await getTestsByConsultation(consultation.id);
-    setTests(list);
+    setTests(list as { id?: string; name?: string; description?: string; status?: string }[]);
     return list;
   }, [consultation?.id]);
 
@@ -146,8 +150,8 @@ function CreatePrescription() {
         setAppointment(apt);
         if (d) {
           setDetails(d);
-          if (d.consultation) setConsultation(d.consultation);
-          if (d.tests?.length) setTests(d.tests);
+          if (d.consultation) setConsultation(d.consultation as { id?: string; requiresLabTest?: boolean });
+          if (d.tests?.length) setTests(d.tests as { id?: string; name?: string; description?: string; status?: string }[]);
         } else {
           getConsultationForAppointment(appointmentId).then((c) => c && setConsultation(c)).catch(() => {});
         }
@@ -189,6 +193,10 @@ function CreatePrescription() {
 
   const handleCreateConsultation = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!appointmentId) {
+      setError("Invalid appointment. Missing appointment ID.");
+      return;
+    }
     if (consultationForm.requiresLabTest === null) {
       setError("Please indicate whether the next step requires lab tests.");
       return;
@@ -207,26 +215,27 @@ function CreatePrescription() {
       const c = await createConsultation({
         appointmentId,
         diagnosis: consultationForm.diagnosis || "Consultation",
-        notes: consultationForm.notes,
-        temperatureCelsius: consultationForm.temperature || null,
-        weightKg: consultationForm.weight || null,
-        heightCm: consultationForm.height || null,
-        bloodPressureSystolic: consultationForm.bloodPressureSystolic || null,
-        bloodPressureDiastolic: consultationForm.bloodPressureDiastolic || null,
-        heartRateBpm: consultationForm.heartRate || null,
-        respiratoryRatePerMin: consultationForm.respiratoryRate || null,
-        oxygenSaturation: consultationForm.oxygenSaturation || null,
+        notes: consultationForm.notes || undefined,
+        temperatureCelsius: consultationForm.temperature || undefined,
+        weightKg: consultationForm.weight || undefined,
+        heightCm: consultationForm.height || undefined,
+        bloodPressureSystolic: consultationForm.bloodPressureSystolic || undefined,
+        bloodPressureDiastolic: consultationForm.bloodPressureDiastolic || undefined,
+        heartRateBpm: consultationForm.heartRate || undefined,
+        respiratoryRatePerMin: consultationForm.respiratoryRate || undefined,
+        oxygenSaturation: consultationForm.oxygenSaturation || undefined,
         requiresLabTest: consultationForm.requiresLabTest === true,
-        labResultsSameDay: consultationForm.requiresLabTest ? consultationForm.labResultsSameDay === true : null,
-        labRequiresFollowUp: consultationForm.requiresLabTest ? consultationForm.labRequiresFollowUp === true : null,
+        labResultsSameDay: consultationForm.requiresLabTest ? (consultationForm.labResultsSameDay === true ? "true" : null) : null,
+        labRequiresFollowUp: consultationForm.requiresLabTest ? (consultationForm.labRequiresFollowUp === true ? "true" : null) : null,
       });
-      setConsultation(c);
+      setConsultation(c as { id?: string; requiresLabTest?: boolean });
       const d = await getAppointmentDetails(appointmentId).catch(() => null);
       if (d) setDetails(d);
       toast.success("Consultation created");
-    } catch (err) {
-      setError(err.message || "Failed to start consultation");
-      toast.error(err.message);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Failed to start consultation";
+      setError(msg);
+      toast.error(msg);
     } finally {
       setSubmitting(false);
     }
@@ -243,16 +252,17 @@ function CreatePrescription() {
       const d = await getAppointmentDetails(appointmentId).catch(() => null);
       if (d) setDetails(d);
       toast.success(status === "COMPLETED" ? "Appointment closed" : "Appointment status updated");
-    } catch (err) {
-      setError(err.message || "Failed to update status");
-      toast.error(err.message);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Failed to update status";
+      setError(msg);
+      toast.error(msg);
     } finally {
       setSubmitting(false);
     }
   };
 
   const handleCancelTest = async (testId: string) => {
-    if (!consultation?.id) return;
+    if (!appointmentId || !consultation?.id) return;
     setError(null);
     try {
       await updateTestStatus(testId, "CANCELLED");
@@ -260,14 +270,15 @@ function CreatePrescription() {
       const d = await getAppointmentDetails(appointmentId).catch(() => null);
       if (d) setDetails(d);
       toast.success("Test cancelled");
-    } catch (err) {
-      setError(err.message || "Failed to cancel test");
-      toast.error(err.message);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Failed to cancel test";
+      setError(msg);
+      toast.error(msg);
     }
   };
 
-  const handleUpdateTestStatus = async (testId, status) => {
-    if (!consultation?.id) return;
+  const handleUpdateTestStatus = async (testId: string, status: string) => {
+    if (!appointmentId || !consultation?.id) return;
     setError(null);
     try {
       await updateTestStatus(testId, status);
@@ -275,15 +286,16 @@ function CreatePrescription() {
       const d = await getAppointmentDetails(appointmentId).catch(() => null);
       if (d) setDetails(d);
       toast.success("Test status updated");
-    } catch (err) {
-      setError(err.message || "Failed to update test");
-      toast.error(err.message);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Failed to update test";
+      setError(msg);
+      toast.error(msg);
     }
   };
 
   const handleAddTest = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!consultation?.id || !testForm.name?.trim()) return;
+    if (!appointmentId || !consultation?.id || !testForm.name?.trim()) return;
     setError(null);
     setSubmitting(true);
     try {
@@ -294,9 +306,10 @@ function CreatePrescription() {
       const d = await getAppointmentDetails(appointmentId).catch(() => null);
       if (d) setDetails(d);
       toast.success("Test added");
-    } catch (err) {
-      setError(err.message || "Failed to add test");
-      toast.error(err.message);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Failed to add test";
+      setError(msg);
+      toast.error(msg);
     } finally {
       setSubmitting(false);
     }
@@ -304,7 +317,7 @@ function CreatePrescription() {
 
   const handleCreatePrescription = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!consultation || tests.length < 1) return;
+    if (!appointmentId || !patientIdParam || !consultation || tests.length < 1) return;
     if (medications.length === 0) {
       setError("Add at least one medication before creating the prescription.");
       return;
@@ -315,11 +328,11 @@ function CreatePrescription() {
       const medParts = medications.map((m) => {
         const dosage = formatDosage(m);
         const frequency = formatFrequency(m);
-        const p = [`${m.medication}`, dosage, frequency, m.instructions && m.instructions].filter(Boolean);
+        const p = [`${m.medication}`, dosage, frequency, m.instructions].filter(Boolean);
         let line = p.join(" — ");
-        const extra = [];
-        if (m.refills > 0) extra.push(`${m.refills} refills`);
-        if (m.expiresIn > 0) extra.push(`valid ${m.expiresIn} days`);
+        const extra: string[] = [];
+        if ((m.refills ?? 0) > 0) extra.push(`${m.refills} refills`);
+        if ((m.expiresIn ?? 0) > 0) extra.push(`valid ${m.expiresIn} days`);
         if (extra.length) line += ` (${extra.join(", ")})`;
         return line;
       });
@@ -327,13 +340,13 @@ function CreatePrescription() {
       await createPrescription({
         appointmentId,
         patientId: patientIdParam,
-        diagnosis: medications[0]?.medication || "Prescription",
+        diagnosis: medications[0]?.medication ?? "Prescription",
         note,
       });
       toast.success("Prescription created successfully");
       navigate("/doctor");
-    } catch (err) {
-      const msg = err.message || "Failed to create prescription";
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Failed to create prescription";
       setError(msg);
       toast.error(msg);
     } finally {
@@ -374,7 +387,7 @@ function CreatePrescription() {
   const statusLower = (displayAppointment?.status || "").toLowerCase();
   const isClosed = ["completed", "cancelled"].includes(statusLower);
   const isApproved = statusLower === "approved";
-  const activeTests = tests.filter((t: { status?: string }) => t.status !== "CANCELLED");
+  const activeTests = tests.filter((t) => t.status !== "CANCELLED");
   const hasPrescription = !!details?.prescription;
   const canWritePrescription = !isClosed && consultation && activeTests.length >= 1 && !hasPrescription;
   const canAddPrescription = !isClosed && consultation && activeTests.length >= 1;
@@ -457,7 +470,7 @@ function CreatePrescription() {
               <div>
                 <p className="text-sm font-medium text-slate-500 mb-1">Tests</p>
                 <ul className="text-slate-700 text-sm space-y-0.5">
-                  {details.tests.map((t) => (
+                  {(details.tests ?? []).map((t) => (
                     <li key={t.id} className={t.status === "CANCELLED" ? "opacity-60" : ""}>
                       • {t.name}{t.description ? ` — ${t.description}` : ""}
                       {t.status && <Badge variant={t.status === "CANCELLED" ? "cancelled" : t.status.toLowerCase()} className="ml-1">{t.status === "CANCELLED" ? "Cancelled" : t.status === "DONE" ? "Done" : t.status === "FOLLOW_UP_NEEDED" ? "Needs follow-up" : "Ordered"}</Badge>}
@@ -471,10 +484,10 @@ function CreatePrescription() {
                 <p className="text-sm font-medium text-slate-500 mb-1">Medications</p>
                 {details?.prescription?.note ? (
                   <ul className="text-slate-700 text-sm space-y-0.5">
-                    {details.prescription.note
+                    {(details.prescription?.note ?? "")
                       .split("\n")
-                      .filter((line) => line.trim())
-                      .map((line, i) => (
+                      .filter((line: string) => line.trim())
+                      .map((line: string, i: number) => (
                         <li key={i} className="flex items-start gap-2">
                           <span className="text-primary mt-0.5">•</span>
                           <span>{line.trim()}</span>
@@ -663,14 +676,14 @@ function CreatePrescription() {
                     <div className="flex items-center gap-1">
                       <select
                         value={t.status || "ORDERED"}
-                        onChange={(e) => handleUpdateTestStatus(t.id, e.target.value)}
+                        onChange={(e) => { if (t.id) handleUpdateTestStatus(t.id, e.target.value); }}
                         className="text-xs border border-slate-200 rounded px-2 py-1"
                       >
                         <option value="ORDERED">Ordered</option>
                         <option value="DONE">Done</option>
                         <option value="FOLLOW_UP_NEEDED">Needs follow-up</option>
                       </select>
-                      <button type="button" onClick={() => handleCancelTest(t.id)} className="text-red-600 hover:text-red-700 text-sm">Cancel</button>
+                      <button type="button" onClick={() => { if (t.id) handleCancelTest(t.id); }} className="text-red-600 hover:text-red-700 text-sm">Cancel</button>
                     </div>
                   )}
                 </li>

@@ -13,7 +13,7 @@ function SignUp() {
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setError("");
-    const form = e.target;
+    const form = e.currentTarget as HTMLFormElement & { [k: string]: { value?: string } | undefined };
     const selectedRole = form.role?.value || role;
     setLoading(true);
     try {
@@ -26,12 +26,12 @@ function SignUp() {
         firstName,
         lastName,
         role: selectedRole === "doctor" ? "doctor" : "patient",
+        ...(selectedRole === "doctor" && {
+          specialty: form.specialty?.value || null,
+          licenseNumber: form.license_number?.value || null,
+          practiceDescription: form.practice_description?.value || null,
+        }),
       };
-      if (selectedRole === "doctor") {
-        data.specialty = form.specialty?.value || null;
-        data.licenseNumber = form.license_number?.value || null;
-        data.practiceDescription = form.practice_description?.value || null;
-      }
       await signup(data);
       toast.success("Account created! Please sign in.");
       navigate("/", { replace: true });
