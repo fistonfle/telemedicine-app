@@ -25,7 +25,7 @@ function SignUp() {
         password: form.password?.value,
         firstName,
         lastName,
-        role: selectedRole === "doctor" ? "doctor" : "patient",
+        role: (selectedRole === "doctor" ? "doctor" : "patient") as "patient" | "doctor",
         ...(selectedRole === "doctor" && {
           specialty: form.specialty?.value || null,
           licenseNumber: form.license_number?.value || null,

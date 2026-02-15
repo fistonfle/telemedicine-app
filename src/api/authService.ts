@@ -18,7 +18,7 @@ export async function updateProfile(data: UpdateProfileData): Promise<Profile> {
 }
 
 export async function login(email: string, password: string): Promise<{ accessToken?: string }> {
-  const res = await fetch(`${API_URL}/auth/login`, {
+  const res = await fetch(`${API_URL}/api/auth/login`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ email, password }),
@@ -53,7 +53,7 @@ export async function signup(data: SignupData): Promise<unknown> {
     yearsExperience: data.yearsExperience != null ? Number(data.yearsExperience) : null,
     consultationType: data.consultationType || null,
   };
-  const res = await fetch(`${API_URL}/auth/signup`, {
+  const res = await fetch(`${API_URL}/api/auth/signup`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
