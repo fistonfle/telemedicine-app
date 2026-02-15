@@ -57,16 +57,16 @@ function BookAppointment() {
   const handleConfirm = async () => {
     const result = await dispatch(createAppointmentThunk({
       doctorId: selectedDoctor?.id,
-      doctor: selectedDoctor,
-      date: selectedDate,
-      slot: selectedSlot,
+      doctor: selectedDoctor ?? undefined,
+      date: selectedDate ?? undefined,
+      slot: selectedSlot ?? undefined,
       reasonForVisit,
     }));
     if (createAppointmentThunk.fulfilled.match(result)) {
       toast.success("Appointment booked successfully");
       navigate("/patient");
     } else if (createAppointmentThunk.rejected.match(result)) {
-      toast.error(result.payload || "Failed to book appointment");
+      toast.error(String(result.payload ?? "Failed to book appointment"));
     }
   };
 
@@ -119,7 +119,7 @@ function BookAppointment() {
           slots={slots}
           workingHours={dayStart != null && dayEnd != null ? { dayStart, dayEnd } : null}
           loading={loading}
-          selectedDate={selectedDate}
+          selectedDate={selectedDate ?? new Date()}
           onDateChange={handleDateChange}
           onSelect={handleSelectDateTime}
           onBack={() => setStep(1)}
@@ -129,7 +129,7 @@ function BookAppointment() {
       {step === 3 && selectedDoctor && selectedDate && selectedSlot && (
         <ConfirmBooking
           doctor={selectedDoctor}
-          date={selectedDate}
+          date={typeof selectedDate === "string" ? selectedDate : selectedDate.toLocaleDateString()}
           slot={selectedSlot}
           reasonForVisit={reasonForVisit}
           onReasonChange={setReasonForVisit}

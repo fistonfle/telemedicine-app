@@ -1,3 +1,4 @@
+import React from "react";
 import type { Doctor, TimeSlot } from "../../types";
 
 function formatSlotLabel(slot: TimeSlot | null): string {
