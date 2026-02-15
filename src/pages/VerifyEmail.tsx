@@ -1,9 +1,15 @@
 import { useEffect, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
+import { Formik, Form, Field } from "formik";
+import * as Yup from "yup";
 import { verifyEmailByToken, resendVerificationLink } from "../api/authService";
 import { useToast } from "../components/ui/Toast";
 
 type Status = "verifying" | "success" | "error";
+
+const resendSchema = Yup.object({
+  email: Yup.string().trim().required("Email is required").email("Enter a valid email address"),
+});
 
 function VerifyEmail() {
   const [searchParams] = useSearchParams();
@@ -11,7 +17,6 @@ function VerifyEmail() {
   const toast = useToast();
   const [status, setStatus] = useState<Status>("verifying");
   const [message, setMessage] = useState("");
-  const [resendEmail, setResendEmail] = useState("");
   const [resendLoading, setResendLoading] = useState(false);
   const verifyStarted = useRef(false);
 
@@ -104,18 +109,13 @@ function VerifyEmail() {
                 </p>
               )}
               {(linkInvalidOrUsed || !message) && <div className="mb-6" />}
-              <form
-                className="flex flex-col sm:flex-row gap-2 mb-6"
-                onSubmit={async (e) => {
-                  e.preventDefault();
-                  const email = resendEmail.trim();
-                  if (!email) {
-                    toast.error("Enter your email address.");
-                    return;
-                  }
+              <Formik
+                initialValues={{ email: "" }}
+                validationSchema={resendSchema}
+                onSubmit={async (values) => {
                   setResendLoading(true);
                   try {
-                    const res = await resendVerificationLink(email);
+                    const res = await resendVerificationLink(values.email.trim());
                     toast.success(res.message || "A new verification link has been sent to your email.");
                   } catch (err) {
                     toast.error(err instanceof Error ? err.message : "Could not resend link.");
@@ -124,22 +124,30 @@ function VerifyEmail() {
                   }
                 }}
               >
-                <input
-                  type="email"
-                  placeholder="Your email"
-                  value={resendEmail}
-                  onChange={(e) => setResendEmail(e.target.value)}
-                  className="flex-1 min-w-0 px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-900 dark:text-white text-sm"
-                  disabled={resendLoading}
-                />
-                <button
-                  type="submit"
-                  disabled={resendLoading}
-                  className="px-4 py-2 rounded-lg bg-primary text-white font-semibold text-sm hover:bg-primary/90 transition-colors disabled:opacity-50 shrink-0"
-                >
-                  {resendLoading ? "Sending…" : "Resend link"}
-                </button>
-              </form>
+                {({ errors, touched }) => (
+                  <Form className="flex flex-col sm:flex-row gap-2 mb-6">
+                    <div className="flex-1 min-w-0">
+                      <Field
+                        name="email"
+                        type="email"
+                        placeholder="Your email"
+                        disabled={resendLoading}
+                        className={`w-full px-3 py-2 rounded-lg border bg-white dark:bg-slate-900 text-slate-900 dark:text-white text-sm ${
+                          touched.email && errors.email ? "border-red-500" : "border-slate-300 dark:border-slate-600"
+                        }`}
+                      />
+                      {touched.email && errors.email && <p className="mt-1 text-xs text-red-600 dark:text-red-400">{errors.email}</p>}
+                    </div>
+                    <button
+                      type="submit"
+                      disabled={resendLoading}
+                      className="px-4 py-2 rounded-lg bg-primary text-white font-semibold text-sm hover:bg-primary/90 transition-colors disabled:opacity-50 shrink-0"
+                    >
+                      {resendLoading ? "Sending…" : "Resend link"}
+                    </button>
+                  </Form>
+                )}
+              </Formik>
             </>
             );
           })()}
