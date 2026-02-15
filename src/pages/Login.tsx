@@ -45,20 +45,16 @@ function Login() {
 
           <form onSubmit={handleSubmit} className="space-y-4">
             {displayError && (
-              <div className="flex items-start gap-3 p-4 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800">
-                <span className="material-icons text-red-600 dark:text-red-400 text-xl shrink-0">error_outline</span>
-                <div className="flex-1 min-w-0">
-                  <p className="font-medium text-red-800 dark:text-red-200">Sign in failed</p>
-                  <p className="text-sm text-red-700 dark:text-red-300 mt-0.5">{displayError}</p>
-                  <p className="text-xs text-red-600 dark:text-red-400 mt-2">Check your email and password, then try again.</p>
-                </div>
+              <div className="flex items-center gap-2 py-2 px-3 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-sm">
+                <span className="material-icons text-red-600 dark:text-red-400 text-base shrink-0">error_outline</span>
+                <p className="flex-1 text-red-700 dark:text-red-300">{displayError}</p>
                 <button
                   type="button"
                   onClick={() => dispatch(clearError())}
-                  className="shrink-0 p-1 rounded hover:bg-red-100 dark:hover:bg-red-800/50 text-red-600 dark:text-red-400"
+                  className="shrink-0 p-0.5 rounded hover:bg-red-100 dark:hover:bg-red-800/50 text-red-600 dark:text-red-400"
                   aria-label="Dismiss"
                 >
-                  <span className="material-icons text-lg">close</span>
+                  <span className="material-icons text-base">close</span>
                 </button>
               </div>
             )}
