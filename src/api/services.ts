@@ -2,7 +2,7 @@
  * Barrel file – re-exports all API services.
  */
 
-export { getStoredToken, setStoredToken, clearStoredToken, fetchApi } from "./client";
+
 export {
   getMe,
   getProfile,

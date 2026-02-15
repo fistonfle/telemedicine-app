@@ -1,6 +1,12 @@
 import { API_URL } from "./config";
-import { fetchApi, setStoredToken, clearStoredToken } from "./client";
+import { fetchApi } from "./client";
 import type { User, Profile, SignupData, UpdateProfileData } from "../types";
+import { clearStoredAuth, getStoredRefreshToken, setStoredRefreshToken, setStoredToken } from "../store/authStorage";
+
+export type RefreshResponse = {
+  accessToken: string;
+  refreshToken?: string;
+};
 
 export async function getMe(): Promise<User | null> {
   return fetchApi<User | null>("/api/me");
@@ -17,7 +23,7 @@ export async function updateProfile(data: UpdateProfileData): Promise<Profile> {
   });
 }
 
-export async function login(email: string, password: string): Promise<{ accessToken?: string }> {
+export async function login(email: string, password: string): Promise<{ accessToken?: string,refreshToken?: string }> {
   const res = await fetch(`${API_URL}/api/auth/login`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -31,9 +37,33 @@ export async function login(email: string, password: string): Promise<{ accessTo
       (res.status === 401 ? "Email or password is incorrect. Please try again." : res.statusText);
     throw new Error(msg);
   }
-  const data = (await res.json()) as { accessToken?: string };
+  const data = (await res.json()) as { accessToken?: string , refreshToken?: string};
   if (data.accessToken) setStoredToken(data.accessToken);
+  if (data.refreshToken) setStoredRefreshToken(data.refreshToken);
   return data;
+}
+
+export async function refreshTokenRequest(): Promise<string> {
+  const rt = getStoredRefreshToken();
+  if (!rt) throw new Error("NO_REFRESH_TOKEN");
+
+  const res = await fetch(`${API_URL}/auth/refresh`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ refreshToken: rt }),
+  });
+
+  if (!res.ok) {
+    clearStoredAuth();
+    throw new Error("REFRESH_FAILED");
+  }
+
+  const data = (await res.json()) as RefreshResponse;
+
+  setStoredToken(data.accessToken);
+  if (data.refreshToken) setStoredRefreshToken(data.refreshToken);
+
+  return data.accessToken;
 }
 
 export async function signup(data: SignupData): Promise<unknown> {
@@ -66,5 +96,5 @@ export async function signup(data: SignupData): Promise<unknown> {
 }
 
 export function logout(): void {
-  clearStoredToken();
+  clearStoredAuth();
 }

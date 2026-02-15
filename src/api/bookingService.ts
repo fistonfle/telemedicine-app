@@ -10,7 +10,7 @@ export interface TimeSlotsResponse {
 
 export async function getDoctors(specialty?: string): Promise<Doctor[]> {
   const q = specialty && specialty !== "all" ? `?specialty=${encodeURIComponent(specialty)}` : "";
-  const list = await fetchApi<Record<string, unknown>[]>(`/api/doctors${q}`);
+  const list = await fetchApi<Record<string, unknown>[]>(`/api/doctor${q}`);
   return (list ?? []).map((d) => ({
     id: d.id,
     name: (d.names as string) ?? (d.name as string) ?? "—",
@@ -33,12 +33,12 @@ export async function getTimeSlots(
   date: Date | string
 ): Promise<TimeSlotsResponse> {
   const dateStr =
-    typeof date === "string" ? date : (date as Date)?.toISOString?.()?.slice(0, 10) ?? String(date);
+    typeof date === "string" ? date : new Date(date).toISOString().split("T")[0] ?? String(date);
   const res = await fetchApi<{
     slots?: Record<string, unknown>[];
     dayStart?: string;
     dayEnd?: string;
-  }>(`/api/doctors/${doctorId}/slots?date=${dateStr}`);
+  }>(`/api/doctor/${doctorId}/slots?date=${dateStr}`);
   const list = res?.slots ?? [];
   const mapped = list.map((s, idx) => ({
     ...s,
@@ -74,5 +74,7 @@ export async function createAppointment(
   return fetchApi("/api/appointments", {
     method: "POST",
     body: JSON.stringify({ patientId, scheduleId, appointmentDate }),
+  }).catch(err=>{
+    throw new Error(err?.message);
   });
 }

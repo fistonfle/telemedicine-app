@@ -66,6 +66,7 @@ function BookAppointment() {
       toast.success("Appointment booked successfully");
       navigate("/patient");
     } else if (createAppointmentThunk.rejected.match(result)) {
+      console.log("ERROR >>"+JSON.stringify(result))
       toast.error(String(result.payload ?? "Failed to book appointment"));
     }
   };
