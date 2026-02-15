@@ -25,8 +25,8 @@ export async function fetchApi<T = unknown>(
 ): Promise<T> {
   const url = `${API_URL}${path}`;
   const isAuthCall =
-    path.startsWith("/auth/login") ||
-    path.startsWith("/auth/refresh");
+    path.startsWith("/api/auth/login") ||
+    path.startsWith("/api/auth/refresh");
 
   // build a request function so we can retry easily
   const doFetch = async (accessToken: string | null): Promise<Response> => {
@@ -83,5 +83,16 @@ export async function fetchApi<T = unknown>(
   // if endpoint returns no content
   if (res.status === 204) return undefined as T;
 
-  return res.json() as Promise<T>;
+  const json = (await res.json()) as T | { status: string; data: unknown; pagination?: unknown };
+  // Backend may return wrapped success: { status: "success", data, pagination? }
+  if (
+    json &&
+    typeof json === "object" &&
+    "status" in json &&
+    (json as { status: string }).status === "success" &&
+    "data" in json
+  ) {
+    return (json as { data: T }).data as T;
+  }
+  return json as T;
 }

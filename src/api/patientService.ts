@@ -14,8 +14,12 @@ function formatAppointmentDate(iso: string | undefined): string {
   return d.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
 }
 
-export async function getPatientAppointments(): Promise<PatientAppointment[]> {
-  const list = await fetchApi<Record<string, unknown>[]>("/api/patient/appointments");
+export async function getPatientAppointments(options?: { page?: number; size?: number }): Promise<PatientAppointment[]> {
+  const params = new URLSearchParams();
+  if (options?.page != null) params.set("page", String(options.page));
+  if (options?.size != null) params.set("size", String(options.size));
+  const q = params.toString() ? `?${params.toString()}` : "";
+  const list = await fetchApi<Record<string, unknown>[]>(`/api/patient/appointments${q}`);
   return (list ?? []).map((a) => ({
     id: a.id,
     doctor: (a.doctorName as string) ?? "—",
@@ -45,8 +49,12 @@ export async function getPatientHealthSnapshot(): Promise<PatientHealth> {
   };
 }
 
-export async function getConsultations(search?: string): Promise<Consultation[]> {
-  const q = search ? `?search=${encodeURIComponent(search)}` : "";
+export async function getConsultations(search?: string, options?: { page?: number; size?: number }): Promise<Consultation[]> {
+  const params = new URLSearchParams();
+  if (search) params.set("search", search);
+  if (options?.page != null) params.set("page", String(options.page));
+  if (options?.size != null) params.set("size", String(options.size));
+  const q = params.toString() ? `?${params.toString()}` : "";
   const list = await fetchApi<Record<string, unknown>[]>(`/api/patient/consultations${q}`);
   return (list ?? []).map((c) => {
     const d = c.consultationDate ? new Date(c.consultationDate as string) : null;
@@ -67,8 +75,12 @@ export async function getConsultationStats(): Promise<ConsultationStats> {
   return { total: r?.total ?? 0, recent: r?.recent ?? 0, avgRating: r?.avgRating ?? "—" };
 }
 
-export async function getPrescriptions(): Promise<PrescriptionRow[]> {
-  const list = await fetchApi<Record<string, unknown>[]>("/api/patient/prescriptions");
+export async function getPrescriptions(options?: { page?: number; size?: number }): Promise<PrescriptionRow[]> {
+  const params = new URLSearchParams();
+  if (options?.page != null) params.set("page", String(options.page));
+  if (options?.size != null) params.set("size", String(options.size));
+  const q = params.toString() ? `?${params.toString()}` : "";
+  const list = await fetchApi<Record<string, unknown>[]>(`/api/patient/prescriptions${q}`);
   const rows: PrescriptionRow[] = [];
   for (const p of list ?? []) {
     const note = ((p.note as string) || "Prescription").trim();
