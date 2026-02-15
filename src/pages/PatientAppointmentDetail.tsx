@@ -109,6 +109,57 @@ function PatientAppointmentDetail() {
               </div>
             </dl>
 
+            {(appointment.parentAppointment || appointment.childAppointment) && (
+              <div className="pt-4 border-t border-slate-100 space-y-3">
+                {appointment.parentAppointment && (
+                  <div className="p-3 rounded-lg bg-sky-50 border border-sky-100">
+                    <p className="text-xs font-medium text-sky-700 uppercase tracking-wide mb-1">Follow-up of</p>
+                    <p className="text-sm text-slate-700">
+                      {appointment.parentAppointment.appointmentDate
+                        ? new Date(appointment.parentAppointment.appointmentDate).toLocaleDateString("en-GB", {
+                            weekday: "short",
+                            day: "numeric",
+                            month: "short",
+                            year: "numeric",
+                          })
+                        : "—"}
+                      {appointment.parentAppointment.slot != null && ` · Slot ${appointment.parentAppointment.slot}`}
+                    </p>
+                    <Link
+                      to={`/patient/appointments/${appointment.parentAppointment.id}`}
+                      className="inline-flex items-center gap-1 mt-2 text-sm font-medium text-primary hover:underline"
+                    >
+                      <span className="material-icons text-lg">open_in_new</span>
+                      View previous appointment
+                    </Link>
+                  </div>
+                )}
+                {appointment.childAppointment && (
+                  <div className="p-3 rounded-lg bg-emerald-50 border border-emerald-100">
+                    <p className="text-xs font-medium text-emerald-700 uppercase tracking-wide mb-1">Follow-up scheduled</p>
+                    <p className="text-sm text-slate-700">
+                      {appointment.childAppointment.appointmentDate
+                        ? new Date(appointment.childAppointment.appointmentDate).toLocaleDateString("en-GB", {
+                            weekday: "short",
+                            day: "numeric",
+                            month: "short",
+                            year: "numeric",
+                          })
+                        : "—"}
+                      {appointment.childAppointment.slot != null && ` · Slot ${appointment.childAppointment.slot}`}
+                    </p>
+                    <Link
+                      to={`/patient/appointments/${appointment.childAppointment.id}`}
+                      className="inline-flex items-center gap-1 mt-2 text-sm font-medium text-primary hover:underline"
+                    >
+                      <span className="material-icons text-lg">open_in_new</span>
+                      View follow-up appointment
+                    </Link>
+                  </div>
+                )}
+              </div>
+            )}
+
             {appointment.consultationSummary && (
               <div className="pt-4 border-t border-slate-100 space-y-4">
                 <p className="text-sm font-medium text-slate-500">Visit summary</p>

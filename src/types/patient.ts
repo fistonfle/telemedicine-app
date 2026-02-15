@@ -13,6 +13,17 @@ export interface PatientAppointment {
   prescriptionNote?: string | null;
   /** Consultation summary for this appointment (diagnosis, notes, vitals, lab flags). Only present when fetching single appointment details and a consultation exists. */
   consultationSummary?: ConsultationSummary | null;
+  /** When this is a follow-up, the previous (parent) appointment. */
+  parentAppointment?: PatientAppointmentLink | null;
+  /** When a follow-up was scheduled from this visit, that (child) appointment. */
+  childAppointment?: PatientAppointmentLink | null;
+}
+
+/** Minimal appointment info for parent/child link on patient appointment detail. */
+export interface PatientAppointmentLink {
+  id: string;
+  appointmentDate?: string | null;
+  slot?: number | null;
 }
 
 /** Summary of a consultation shown on the patient appointment detail page. */

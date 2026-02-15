@@ -7,6 +7,7 @@ import type {
   ConsultationStats,
   PrescriptionRow,
   ConsultationSummary,
+  PatientAppointmentLink,
 } from "../types";
 
 function formatAppointmentDate(iso: string | undefined): string {
@@ -57,6 +58,15 @@ function mapConsultationSummary(c: Record<string, unknown> | null | undefined): 
   };
 }
 
+function mapAppointmentLink(l: Record<string, unknown> | null | undefined): PatientAppointmentLink | null {
+  if (!l || typeof l !== "object" || l.id == null) return null;
+  return {
+    id: String(l.id),
+    appointmentDate: (l.appointmentDate as string) ?? null,
+    slot: l.slot != null ? Number(l.slot) : null,
+  };
+}
+
 export async function getPatientAppointment(id: string): Promise<PatientAppointment> {
   const raw = await fetchApi<Record<string, unknown>>(`/api/patient/appointments/${id}`);
   if (!raw) throw new Error("Appointment not found");
@@ -64,15 +74,31 @@ export async function getPatientAppointment(id: string): Promise<PatientAppointm
     appointment?: Record<string, unknown>;
     consultationSummary?: Record<string, unknown> | null;
     prescriptionNote?: string | null;
+    parentAppointment?: Record<string, unknown> | null;
+    childAppointment?: Record<string, unknown> | null;
   };
   const a =
     payload.appointment && typeof payload.appointment === "object"
-      ? { ...payload.appointment, prescriptionNote: payload.prescriptionNote, consultationSummary: payload.consultationSummary }
-      : { ...raw, prescriptionNote: payload.prescriptionNote, consultationSummary: payload.consultationSummary };
+      ? {
+          ...payload.appointment,
+          prescriptionNote: payload.prescriptionNote,
+          consultationSummary: payload.consultationSummary,
+          parentAppointment: payload.parentAppointment,
+          childAppointment: payload.childAppointment,
+        }
+      : {
+          ...raw,
+          prescriptionNote: payload.prescriptionNote,
+          consultationSummary: payload.consultationSummary,
+          parentAppointment: payload.parentAppointment,
+          childAppointment: payload.childAppointment,
+        };
   return {
     ...mapAppointmentToPatient(a as Record<string, unknown>),
     prescriptionNote: (a.prescriptionNote as string) ?? null,
     consultationSummary: mapConsultationSummary(a.consultationSummary as Record<string, unknown> | null | undefined),
+    parentAppointment: mapAppointmentLink(a.parentAppointment as Record<string, unknown> | null | undefined),
+    childAppointment: mapAppointmentLink(a.childAppointment as Record<string, unknown> | null | undefined),
   };
 }
 
