@@ -157,6 +157,7 @@ export async function getPrescriptions(options?: { page?: number; size?: number 
     const doctor = p.doctorName
       ? ((p.doctorName as string).startsWith("Dr.") ? (p.doctorName as string) : `Dr. ${p.doctorName}`)
       : "—";
+    const appointmentId = p.appointmentId != null ? String(p.appointmentId) : null;
     const lines = note
       .split("\n")
       .map((l) => l.trim())
@@ -170,6 +171,7 @@ export async function getPrescriptions(options?: { page?: number; size?: number 
         doctor,
         expires: "—",
         status: "ready",
+        appointmentId,
       });
     } else {
       for (let i = 0; i < lines.length; i++) {
@@ -185,6 +187,7 @@ export async function getPrescriptions(options?: { page?: number; size?: number 
           doctor,
           expires: "—",
           status: "ready",
+          appointmentId,
         });
       }
     }

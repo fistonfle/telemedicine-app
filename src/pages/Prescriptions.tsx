@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { Link } from "react-router-dom";
 import { useAppDispatch, useAppSelector } from "../store";
 import Badge from "../components/ui/Badge";
 import { fetchPrescriptions } from "../store/slices/patientSlice";
@@ -131,6 +132,9 @@ function Prescriptions() {
                 <th className="text-left py-4 px-6 text-xs font-semibold text-slate-500 uppercase tracking-wider">
                   Status
                 </th>
+                <th className="text-left py-4 px-6 text-xs font-semibold text-slate-500 uppercase tracking-wider">
+                  Visit
+                </th>
               </tr>
             </thead>
             <tbody>
@@ -176,6 +180,19 @@ function Prescriptions() {
                         ? "Processing"
                         : "Out of refills"}
                     </Badge>
+                  </td>
+                  <td className="py-4 px-6">
+                    {rx.appointmentId ? (
+                      <Link
+                        to={`/patient/appointments/${rx.appointmentId}`}
+                        className="inline-flex items-center gap-1.5 text-sm font-medium text-primary hover:underline"
+                      >
+                        <span className="material-icons text-lg">event</span>
+                        View appointment
+                      </Link>
+                    ) : (
+                      <span className="text-slate-400 text-sm">—</span>
+                    )}
                   </td>
                 </tr>
               ))}

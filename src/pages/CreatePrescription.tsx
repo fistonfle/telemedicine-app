@@ -504,8 +504,14 @@ function CreatePrescription() {
           Back to Dashboard
         </Link>
         <h1 className="text-3xl font-bold text-slate-900">{pageTitle}</h1>
-        <p className="text-slate-500 mt-1">
+        <p className="text-slate-500 mt-1 flex flex-wrap items-center gap-2">
           {displayAppointment && <>For <span className="font-medium text-slate-700">{displayAppointment.patient}</span> — Slot {displayAppointment.slot}</>}
+          {details?.parentAppointment && (
+            <span className="inline-flex items-center gap-1 px-2.5 py-1 text-sm font-medium rounded-lg bg-sky-100 text-sky-800">
+              <span className="material-icons text-lg">replay</span>
+              Follow-up visit
+            </span>
+          )}
         </p>
       </div>
 

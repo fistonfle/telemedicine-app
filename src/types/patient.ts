@@ -93,4 +93,6 @@ export interface PrescriptionRow {
   doctor: string;
   expires: string;
   status: string;
+  /** Appointment this prescription was added in; link to view that visit. */
+  appointmentId?: string | null;
 }

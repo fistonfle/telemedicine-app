@@ -157,7 +157,15 @@ function DoctorDashboard() {
                       Slot {apt.slot}
                     </td>
                     <td className="py-4 px-6">
-                      <Badge variant={apt.status}>{apt.status}</Badge>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <Badge variant={apt.status}>{apt.status}</Badge>
+                        {apt.isFollowUp && (
+                          <span className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium rounded-lg bg-sky-100 text-sky-800">
+                            <span className="material-icons text-base">replay</span>
+                            Follow-up
+                          </span>
+                        )}
+                      </div>
                     </td>
                     <td className="py-4 px-6">
                       <div className="flex flex-wrap items-center gap-2">

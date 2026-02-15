@@ -78,6 +78,7 @@ export async function getDoctorAppointments(options?: { page?: number; size?: nu
       status: ((a.status as string) || "PENDING").toLowerCase(),
       appointmentDate: (a.appointmentDate as string) ?? null,
       nextStep,
+      isFollowUp: a.isFollowUp === true,
     };
   });
 }
