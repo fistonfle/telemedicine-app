@@ -121,12 +121,14 @@ function ProfileSettings() {
                 Personal Information
               </h3>
               <div className="space-y-4">
-                {[
-                  { key: "fullName", label: "Full Name", type: "text" },
-                  { key: "email", label: "Email Address", type: "email" },
-                  { key: "phone", label: "Phone Number", type: "tel" },
-                  { key: "dateOfBirth", label: "Date of Birth", type: "text" },
-                ].map(({ key, label, type }: { key: keyof typeof form; label: string; type: string }) => (
+                {(
+                  [
+                    { key: "fullName", label: "Full Name", type: "text" },
+                    { key: "email", label: "Email Address", type: "email" },
+                    { key: "phone", label: "Phone Number", type: "tel" },
+                    { key: "dateOfBirth", label: "Date of Birth", type: "text" },
+                  ] as { key: keyof typeof form; label: string; type: string }[]
+                ).map(({ key, label, type }) => (
                   <div key={key}>
                     <label className="block text-sm font-medium text-slate-700 mb-1">
                       {label}

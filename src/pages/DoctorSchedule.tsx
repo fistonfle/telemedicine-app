@@ -60,7 +60,7 @@ function DoctorSchedule() {
                 end: toDisplayTime(d.endTime),
                 maxPatients: d.maxPatientsPerDay ?? 12,
                 slotDuration: d.slotDurationMinutes ?? 60,
-                unavailable: d.unavailable ?? (d.maxPatientsPerDay <= 0),
+                unavailable: d.unavailable ?? ((d.maxPatientsPerDay ?? 1) <= 0),
               };
             }
           });
@@ -317,7 +317,7 @@ function DoctorSchedule() {
                         end: toDisplayTime(d.endTime),
                         maxPatients: d.maxPatientsPerDay ?? 12,
                         slotDuration: d.slotDurationMinutes ?? 60,
-                        unavailable: d.unavailable ?? (d.maxPatientsPerDay <= 0),
+                        unavailable: d.unavailable ?? ((d.maxPatientsPerDay ?? 1) <= 0),
                       };
                     }
                   });

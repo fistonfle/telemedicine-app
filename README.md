@@ -49,3 +49,10 @@ npm run dev
 npm run build
 npm run preview
 ```
+
+## Tests
+
+```bash
+npm run test        # run once
+npm run test:watch  # watch mode
+```
