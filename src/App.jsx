@@ -5,6 +5,7 @@ import DoctorRegistration from "./DoctorRegistration.jsx";
 import PatientLayout from "./components/PatientLayout.jsx";
 import DoctorLayout from "./components/DoctorLayout.jsx";
 import PatientDashboard from "./pages/PatientDashboard.jsx";
+import PatientAppointments from "./pages/PatientAppointments.jsx";
 import BookAppointment from "./pages/BookAppointment.jsx";
 import ConsultationHistory from "./pages/ConsultationHistory.jsx";
 import ProfileSettings from "./pages/ProfileSettings.jsx";
@@ -14,7 +15,6 @@ import DoctorAppointments from "./pages/DoctorAppointments.jsx";
 import DoctorSchedule from "./pages/DoctorSchedule.jsx";
 import DoctorPatients from "./pages/DoctorPatients.jsx";
 import CreatePrescription from "./pages/CreatePrescription.jsx";
-import PlaceholderPage from "./pages/PlaceholderPage.jsx";
 import { getStoredToken } from "./api/services.js";
 
 function ProtectedRoute({ children }) {
@@ -31,10 +31,10 @@ function App() {
       <Route path="/register/doctor" element={<DoctorRegistration />} />
       <Route path="/patient" element={<ProtectedRoute><PatientLayout /></ProtectedRoute>}>
         <Route index element={<PatientDashboard />} />
+        <Route path="appointments" element={<PatientAppointments />} />
         <Route path="book" element={<BookAppointment />} />
         <Route path="prescriptions" element={<Prescriptions />} />
         <Route path="history" element={<ConsultationHistory />} />
-        <Route path="records" element={<PlaceholderPage title="Medical Records" />} />
         <Route path="profile" element={<ProfileSettings />} />
       </Route>
       <Route path="/doctor" element={<ProtectedRoute><DoctorLayout /></ProtectedRoute>}>

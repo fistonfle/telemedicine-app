@@ -122,41 +122,6 @@ function DoctorPatients() {
           <p className="text-sm text-slate-500">Showing {filteredPatients.length} patients</p>
         </div>
       </div>
-
-      {/* Action Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        {[
-          {
-            icon: "trending_up",
-            title: "Patient Trends",
-            description:
-              "Analyze demographic trends and drill on patterns across your roster.",
-          },
-          {
-            icon: "cloud_upload",
-            title: "Upload Results",
-            description:
-              "Bulk upload lab results and scan diagnostic images to patient files.",
-          },
-          {
-            icon: "campaign",
-            title: "Broadcast Notice",
-            description:
-              "Send an update to all your patients regarding office hours.",
-          },
-        ].map((card) => (
-          <div
-            key={card.title}
-            className="bg-white border border-slate-200 rounded-xl p-6 shadow-sm hover:shadow-md transition-shadow cursor-pointer"
-          >
-            <div className="w-12 h-12 rounded-lg bg-primary/10 flex items-center justify-center mb-4">
-              <span className="material-icons text-primary text-xl">{card.icon}</span>
-            </div>
-            <h3 className="font-bold text-slate-900 mb-2">{card.title}</h3>
-            <p className="text-sm text-slate-500">{card.description}</p>
-          </div>
-        ))}
-      </div>
     </div>
   );
 }

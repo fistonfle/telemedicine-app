@@ -77,37 +77,33 @@ function BookAppointment() {
   };
 
   return (
-    <div className="p-8">
-      {/* Progress Steps */}
-      <div className="flex items-center justify-center gap-4 mb-8">
+    <div className="p-8 max-w-4xl mx-auto">
+      {/* Compact Step Indicator */}
+      <div className="flex items-center gap-1 mb-10">
         {STEPS.map((s, i) => (
           <div key={s.id} className="flex items-center">
-            <div className="flex items-center gap-2">
-              <div
-                className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-semibold ${
-                  step > s.id
-                    ? "bg-emerald-500 text-white"
-                    : step === s.id
-                    ? "bg-primary text-white"
-                    : "bg-slate-200 text-slate-500"
-                }`}
-              >
-                {step > s.id ? (
-                  <span className="material-icons text-lg">check</span>
-                ) : (
-                  s.id
-                )}
-              </div>
-              <span
-                className={`text-sm font-medium ${
-                  step >= s.id ? "text-slate-900" : "text-slate-400"
-                }`}
-              >
-                {s.label}
-              </span>
+            <div
+              className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-medium ${
+                step === s.id
+                  ? "bg-primary text-white"
+                  : step > s.id
+                  ? "bg-emerald-100 text-emerald-700"
+                  : "bg-slate-100 text-slate-400"
+              }`}
+            >
+              {step > s.id ? (
+                <span className="material-icons text-base">check</span>
+              ) : (
+                <span className="w-5 h-5 rounded-full flex items-center justify-center text-xs border border-current/50">
+                  {s.id}
+                </span>
+              )}
+              {s.label}
             </div>
             {i < STEPS.length - 1 && (
-              <div className="w-12 h-0.5 bg-slate-200 mx-2" />
+              <span className="mx-1 text-slate-300">
+                <span className="material-icons text-lg">chevron_right</span>
+              </span>
             )}
           </div>
         ))}

@@ -169,10 +169,10 @@ function PatientDashboard() {
           </div>
           <div className="px-6 py-3 border-t border-slate-100">
             <Link
-              to="/patient/book"
+              to="/patient/appointments"
               className="text-sm text-primary font-medium hover:underline"
             >
-              View all upcoming appointments
+              View all appointments
             </Link>
           </div>
         </div>

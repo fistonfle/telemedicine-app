@@ -235,6 +235,7 @@ function CreatePrescription() {
   const handleUpdateAppointmentStatus = async (status) => {
     if (!appointmentId) return;
     setError(null);
+    setSubmitting(true);
     try {
       await updateAppointmentStatus(appointmentId, status);
       const apt = await getDoctorAppointment(appointmentId);
@@ -245,6 +246,8 @@ function CreatePrescription() {
     } catch (err) {
       setError(err.message || "Failed to update status");
       toast.error(err.message);
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -368,7 +371,9 @@ function CreatePrescription() {
   }
 
   const displayAppointment = details?.appointment ?? appointment;
-  const isClosed = ["completed", "cancelled"].includes((displayAppointment?.status || "").toLowerCase());
+  const statusLower = (displayAppointment?.status || "").toLowerCase();
+  const isClosed = ["completed", "cancelled"].includes(statusLower);
+  const isApproved = statusLower === "approved";
   const activeTests = tests.filter((t) => t.status !== "CANCELLED");
   const hasPrescription = !!details?.prescription;
   const canWritePrescription = !isClosed && consultation && activeTests.length >= 1 && !hasPrescription;
@@ -461,10 +466,24 @@ function CreatePrescription() {
                 </ul>
               </div>
             )}
-            {details?.prescription && (
+            {(details?.consultation || details?.tests?.length) && (
               <div>
-                <p className="text-sm font-medium text-slate-500 mb-1">Prescription</p>
-                <p className="text-slate-700 text-sm whitespace-pre-wrap">{details.prescription.note}</p>
+                <p className="text-sm font-medium text-slate-500 mb-1">Medications</p>
+                {details?.prescription?.note ? (
+                  <ul className="text-slate-700 text-sm space-y-0.5">
+                    {details.prescription.note
+                      .split("\n")
+                      .filter((line) => line.trim())
+                      .map((line, i) => (
+                        <li key={i} className="flex items-start gap-2">
+                          <span className="text-primary mt-0.5">•</span>
+                          <span>{line.trim()}</span>
+                        </li>
+                      ))}
+                  </ul>
+                ) : (
+                  <p className="text-slate-500 text-sm italic">No medications prescribed</p>
+                )}
               </div>
             )}
           </div>
@@ -472,7 +491,21 @@ function CreatePrescription() {
       )}
 
       {/* Step 1: Create consultation if needed */}
-      {!isClosed && !consultation && (
+      {!isClosed && !consultation && !isApproved && (
+        <div className="mb-8 p-6 bg-slate-50 border border-slate-200 rounded-xl">
+          <h2 className="text-lg font-semibold text-slate-900 mb-2">Approve first</h2>
+          <p className="text-sm text-slate-600 mb-4">The appointment must be approved before you can start a consultation.</p>
+          <button
+            type="button"
+            onClick={() => handleUpdateAppointmentStatus("APPROVED")}
+            disabled={submitting}
+            className="px-6 py-2.5 bg-primary text-white font-semibold rounded-lg hover:bg-primary/90 disabled:opacity-60"
+          >
+            Approve appointment
+          </button>
+        </div>
+      )}
+      {!isClosed && !consultation && isApproved && (
         <div className="mb-8 p-6 bg-amber-50 border border-amber-200 rounded-xl">
           <h2 className="text-lg font-semibold text-slate-900 mb-2">1. Create consultation</h2>
           <p className="text-sm text-slate-600 mb-4">Create a consultation record before adding tests and prescribing.</p>

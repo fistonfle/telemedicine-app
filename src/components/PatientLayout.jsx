@@ -12,10 +12,10 @@ function PatientLayout() {
 
   const navItems = [
     { path: "/patient", icon: "dashboard", label: "Dashboard" },
-    { path: "/patient/book", icon: "event", label: "Book Appointment" },
+    { path: "/patient/appointments", icon: "event", label: "Appointments" },
+    { path: "/patient/book", icon: "add_circle", label: "Book Appointment" },
     { path: "/patient/history", icon: "history", label: "History" },
     { path: "/patient/prescriptions", icon: "medication", label: "Prescriptions" },
-    { path: "/patient/records", icon: "folder", label: "Medical Records" },
     { path: "/patient/profile", icon: "person", label: "Profile" },
   ];
 

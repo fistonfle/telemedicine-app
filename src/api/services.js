@@ -150,11 +150,12 @@ export async function getPatientAppointments() {
     return mockAppointments;
   }
   const list = await fetchApi("/api/patient/appointments");
-  return list.map((a) => ({
+  return (list ?? []).map((a) => ({
     id: a.id,
     doctor: a.doctorName ?? "—",
     email: "",
     specialty: a.specialty ?? "—",
+    appointmentDate: a.appointmentDate ?? a.appointment_date,
     date: formatAppointmentDate(a.appointmentDate),
     slot: a.appointmentNumber ?? a.assignedNumber ?? "—",
     status: (a.status || "PENDING").toLowerCase(),
@@ -303,15 +304,34 @@ export async function getPrescriptions() {
     return mockPrescriptions;
   }
   const list = await fetchApi("/api/patient/prescriptions");
-  return (list ?? []).map((p) => ({
-    id: p.id,
-    medication: p.note || "Prescription",
-    dosage: "—",
-    frequency: "—",
-    doctor: p.doctorName ?? "—",
-    expires: "—",
-    status: "ready",
-  }));
+  // Flatten: each prescription note can contain multiple medications (one per line)
+  const rows = [];
+  for (const p of list ?? []) {
+    const note = (p.note || "Prescription").trim();
+    const doctor = p.doctorName ? (p.doctorName.startsWith("Dr.") ? p.doctorName : `Dr. ${p.doctorName}`) : "—";
+    const lines = note.split("\n").map((l) => l.trim()).filter(Boolean);
+    if (lines.length === 0) {
+      rows.push({ id: p.id, medication: "Prescription", dosage: "—", frequency: "—", doctor, expires: "—", status: "ready" });
+    } else {
+      // Parse "Medication — dosage — frequency" format when possible
+      for (let i = 0; i < lines.length; i++) {
+        const parts = lines[i].split("—").map((s) => s.trim()).filter(Boolean);
+        const medication = parts[0] ?? lines[i];
+        const dosage = parts[1] ?? "—";
+        const frequency = parts[2] ?? "—";
+        rows.push({
+          id: `${p.id}-${i}`,
+          medication,
+          dosage,
+          frequency,
+          doctor,
+          expires: "—",
+          status: "ready",
+        });
+      }
+    }
+  }
+  return rows;
 }
 
 // ─── Doctor APIs ────────────────────────────────────────────────────────────

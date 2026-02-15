@@ -86,7 +86,7 @@ function SelectDateTime({ doctor, slots = [], workingHours, loading, selectedDat
   return (
     <div className="max-w-4xl mx-auto">
       {/* Selected Doctor Info */}
-      <div className="flex items-center gap-3 mb-8 p-4 bg-slate-50 rounded-xl">
+      <div className="flex items-center gap-3 mb-6 p-4 bg-slate-50 rounded-lg border border-slate-100">
         <div className="w-12 h-12 rounded-full bg-primary/20 flex items-center justify-center text-primary font-bold">
           {doctor.avatar ?? (doctor.name || "D").slice(0, 2).toUpperCase()}
         </div>
@@ -101,7 +101,7 @@ function SelectDateTime({ doctor, slots = [], workingHours, loading, selectedDat
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
         {/* Calendar */}
-        <div className="bg-white border border-slate-200 rounded-xl p-6 shadow-sm">
+        <div className="bg-white border border-slate-200 rounded-lg p-6">
           <div className="flex justify-between items-center mb-6">
             <h3 className="font-bold text-slate-900">
               {MONTHS[currentMonth - 1]} {currentYear}
@@ -168,8 +168,8 @@ function SelectDateTime({ doctor, slots = [], workingHours, loading, selectedDat
           </div>
         </div>
 
-        {/* Available Slots - patient picks preferred time */}
-        <div className="bg-white border border-slate-200 rounded-xl p-6 shadow-sm">
+        {/* Available Slots */}
+        <div className="bg-white border border-slate-200 rounded-lg p-6">
           <h3 className="font-bold text-slate-900 mb-4">
             Available Slots
           </h3>
@@ -228,23 +228,19 @@ function SelectDateTime({ doctor, slots = [], workingHours, loading, selectedDat
       <div className="flex justify-between mt-8">
         <button
           onClick={onBack}
-          className="px-6 py-3 border border-slate-200 rounded-lg text-slate-600 font-medium hover:bg-slate-50"
+          className="px-4 py-2.5 border border-slate-200 rounded-lg text-slate-600 font-medium hover:bg-slate-50"
         >
           Back
         </button>
         <button
           onClick={handleContinue}
           disabled={!assignedSlot}
-          className="inline-flex items-center gap-2 px-6 py-3 bg-primary text-white font-semibold rounded-lg hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed"
+          className="inline-flex items-center gap-2 px-6 py-2.5 bg-primary text-white font-semibold rounded-lg hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed"
         >
-          Continue to Confirmation
+          Continue
           <span className="material-icons text-lg">arrow_forward</span>
         </button>
       </div>
-
-      <p className="text-center text-slate-400 text-sm mt-8">
-        © 2023 Telemed Health. All appointments are subject to doctor availability.
-      </p>
     </div>
   );
 }

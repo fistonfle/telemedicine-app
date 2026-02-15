@@ -24,34 +24,25 @@ function ConfirmBooking({
   submitting = false,
 }) {
   return (
-    <div className="max-w-2xl mx-auto">
-      <h1 className="text-2xl font-bold text-slate-900 mb-1">
-        Review & Confirm Appointment
-      </h1>
-      <p className="text-slate-500 mb-8">
-        Please check the details below before proceeding to confirm your appointment.
-      </p>
+    <div className="max-w-2xl">
+      <h2 className="text-xl font-bold text-slate-900 mb-1">Confirm Booking</h2>
+      <p className="text-slate-500 text-sm mb-6">Review the details before confirming.</p>
 
       {/* Doctor Card */}
-      <div className="bg-white border border-slate-200 rounded-xl p-6 shadow-sm mb-6">
+      <div className="bg-white border border-slate-200 rounded-lg p-5 mb-4">
         <div className="flex items-center gap-4">
-          <div className="w-16 h-16 rounded-full bg-primary/20 flex items-center justify-center text-primary font-bold text-xl">
+          <div className="w-14 h-14 rounded-full bg-primary/20 flex items-center justify-center text-primary font-bold text-lg">
             {doctor.avatar}
           </div>
           <div>
-            <h3 className="font-bold text-slate-900 text-lg">{doctor.name}</h3>
-            <p className="text-slate-500 text-sm uppercase tracking-wide">
-              {doctor.specialty}
-            </p>
-            <p className="text-slate-600 text-sm mt-1">
-              {doctor.rating} ({doctor.reviews} reviews) • St. Mary's Clinic
-            </p>
+            <h3 className="font-bold text-slate-900">{doctor.name}</h3>
+            <p className="text-slate-500 text-sm">{doctor.specialty}</p>
           </div>
         </div>
       </div>
 
       {/* Date & Slot */}
-      <div className="flex items-start gap-3 p-4 bg-slate-50 rounded-xl border border-slate-100 mb-6">
+      <div className="flex items-start gap-3 p-4 bg-slate-50 rounded-lg border border-slate-100 mb-4">
         <span className="material-icons text-primary">event</span>
         <div>
           <p className="text-xs font-semibold text-slate-500 uppercase">Date & Slot</p>
@@ -63,7 +54,7 @@ function ConfirmBooking({
       </div>
 
       {/* Reason for Visit */}
-      <div className="mb-6">
+      <div className="mb-4">
         <label className="block text-sm font-semibold text-slate-700 mb-2">
           Reason for Visit (Optional)
         </label>
@@ -77,7 +68,7 @@ function ConfirmBooking({
       </div>
 
       {/* Info Box */}
-      <div className="flex gap-3 p-4 bg-primary/5 border border-primary/20 rounded-xl mb-8">
+      <div className="flex gap-3 p-4 bg-primary/5 border border-primary/20 rounded-lg mb-6">
         <span className="material-icons text-primary shrink-0">info</span>
         <p className="text-sm text-slate-700">
           You will receive a reminder before your appointment. You can cancel or
@@ -86,32 +77,25 @@ function ConfirmBooking({
       </div>
 
       {/* Actions */}
-      <div className="space-y-4">
+      <div className="flex flex-col-reverse sm:flex-row gap-3 sm:justify-between">
+        <button
+          onClick={onBack}
+          className="text-slate-500 hover:text-slate-700 text-sm font-medium"
+        >
+          Back
+        </button>
         <button
           onClick={onConfirm}
           disabled={submitting}
-          className="w-full inline-flex items-center justify-center gap-2 py-4 bg-primary text-white font-bold rounded-lg hover:bg-primary/90 disabled:opacity-70 disabled:cursor-not-allowed"
+          className="inline-flex items-center justify-center gap-2 py-3 px-6 bg-primary text-white font-semibold rounded-lg hover:bg-primary/90 disabled:opacity-70 disabled:cursor-not-allowed"
         >
           {submitting ? (
             <span className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
           ) : (
-            <span className="material-icons">check_circle</span>
+            <span className="material-icons text-lg">check_circle</span>
           )}
           {submitting ? "Booking..." : "Confirm Booking"}
         </button>
-        <button
-          onClick={onBack}
-          className="w-full text-slate-500 hover:text-slate-700 text-sm font-medium"
-        >
-          Cancel and go back
-        </button>
-      </div>
-
-      <div className="flex justify-center gap-6 mt-8 text-sm text-slate-400">
-        <a href="#" className="hover:text-primary">Help</a>
-        <a href="#" className="hover:text-primary">Terms</a>
-        <a href="#" className="hover:text-primary">Privacy</a>
-        <a href="#" className="hover:text-primary">Support</a>
       </div>
     </div>
   );

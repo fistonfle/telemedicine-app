@@ -19,8 +19,8 @@ function Prescriptions() {
   const filtered = prescriptions.filter(
     (p) =>
       !searchQuery ||
-      p.medication.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      p.doctor.toLowerCase().includes(searchQuery.toLowerCase())
+      (p.medication || "").toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (p.doctor || "").toLowerCase().includes(searchQuery.toLowerCase())
   );
 
   if (loading) {
@@ -105,6 +105,13 @@ function Prescriptions() {
 
       {/* Prescription List */}
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden mb-8">
+        {filtered.length === 0 ? (
+          <div className="p-12 text-center text-slate-500">
+            <span className="material-icons text-4xl mb-4 block text-slate-300">medication</span>
+            <p className="font-medium">No prescriptions yet</p>
+            <p className="text-sm mt-1">Prescriptions from your doctor will appear here after your appointments.</p>
+          </div>
+        ) : (
         <div className="overflow-x-auto">
           <table className="w-full">
             <thead>
@@ -175,50 +182,7 @@ function Prescriptions() {
             </tbody>
           </table>
         </div>
-      </div>
-
-      {/* Info Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        {[
-          {
-            icon: "local_pharmacy",
-            title: "Preferred Pharmacy",
-            content: "Add your preferred pharmacy in profile settings.",
-            action: "Set Pharmacy",
-          },
-          {
-            icon: "health_and_safety",
-            title: "Medication Safety",
-            content:
-              "Check for drug interactions and learn more about side effects.",
-            action: "Learn More",
-          },
-          {
-            icon: "notifications",
-            title: "Refill Reminders",
-            content:
-              "Enable notifications to receive timely refill reminders.",
-            action: "Enable",
-          },
-        ].map((card) => (
-          <div
-            key={card.title}
-            className="bg-white border border-slate-200 rounded-xl p-6 shadow-sm"
-          >
-            <div className="flex items-start gap-4">
-              <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
-                <span className="material-icons text-primary">{card.icon}</span>
-              </div>
-              <div className="flex-1 min-w-0">
-                <h3 className="font-bold text-slate-900 mb-1">{card.title}</h3>
-                <p className="text-sm text-slate-500 mb-3">{card.content}</p>
-                <button className="text-primary font-medium hover:underline text-sm">
-                  {card.action}
-                </button>
-              </div>
-            </div>
-          </div>
-        ))}
+        )}
       </div>
     </div>
   );
