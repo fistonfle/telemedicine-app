@@ -37,8 +37,12 @@ export async function updateAppointmentStatus(
   });
 }
 
-export async function getDoctorAppointments(): Promise<DoctorAppointment[]> {
-  const list = await fetchApi<Record<string, unknown>[]>("/api/doctor/appointments");
+export async function getDoctorAppointments(options?: { page?: number; size?: number }): Promise<DoctorAppointment[]> {
+  const params = new URLSearchParams();
+  if (options?.page != null) params.set("page", String(options.page));
+  if (options?.size != null) params.set("size", String(options.size));
+  const q = params.toString() ? `?${params.toString()}` : "";
+  const list = await fetchApi<Record<string, unknown>[]>(`/api/doctor/appointments${q}`);
   return (list ?? []).map((a) => {
     const hasConsultation = a.hasConsultation === true;
     const testCount = (a.testCount as number) ?? 0;
@@ -147,8 +151,12 @@ export async function getPatientTraffic(): Promise<TrafficDay[]> {
   return (r && typeof r === "object" && "days" in r ? r.days : r) ?? [];
 }
 
-export async function getDoctorPatients(search?: string): Promise<DoctorPatient[]> {
-  const q = search ? `?search=${encodeURIComponent(search)}` : "";
+export async function getDoctorPatients(search?: string, options?: { page?: number; size?: number }): Promise<DoctorPatient[]> {
+  const params = new URLSearchParams();
+  if (search) params.set("search", search);
+  if (options?.page != null) params.set("page", String(options.page));
+  if (options?.size != null) params.set("size", String(options.size));
+  const q = params.toString() ? `?${params.toString()}` : "";
   const list = await fetchApi<Record<string, unknown>[]>(`/api/doctor/patients${q}`);
   return (list ?? []).map((p) => ({
     id: String(p.idNumber ?? p.id),
