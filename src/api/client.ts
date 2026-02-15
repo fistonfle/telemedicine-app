@@ -34,7 +34,7 @@ export async function fetchApi<T = unknown>(path: string, options: FetchOptions 
   if (res.status === 401 || res.status === 403) {
     if (token) {
       clearStoredToken();
-      window.location.href = "/login";
+      window.location.href = "/";
     }
     return undefined as T;
   }
