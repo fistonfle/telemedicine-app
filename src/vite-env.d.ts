@@ -1,6 +1,6 @@
 /// <reference types="vite/client" />
-
-declare module "react/jsx-runtime";
+/// <reference types="react" />
+/// <reference types="react-dom" />
 
 interface ImportMetaEnv {
   readonly VITE_API_URL: string;
