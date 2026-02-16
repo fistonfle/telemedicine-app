@@ -6,6 +6,7 @@ import { loginUser, verifyLoginOtp, clearError } from "../store/slices/authSlice
 import { useAppDispatch, useAppSelector } from "../store";
 import { useToast } from "../components/ui/Toast";
 import * as authService from "../api/authService";
+import { setStoredActiveProfileId } from "../store/authStorage";
 
 const loginSchema = Yup.object({
   email: Yup.string().trim().required("Email is required").email("Enter a valid email address"),
@@ -24,14 +25,32 @@ function Login() {
   const handleSubmit = async (values: { email: string; password: string }) => {
     const result = await dispatch(loginUser({ email: values.email.trim(), password: values.password }));
     if (loginUser.fulfilled.match(result)) {
-      const payload = result.payload as { requiresOtp?: boolean; email?: string } | { id: string; role?: string };
+      const payload = result.payload as { requiresOtp?: boolean; email?: string } | { role?: string; profiles?: { id: string; role: string }[] };
       if (payload && "requiresOtp" in payload && payload.requiresOtp && payload.email) {
         setOtpEmail(payload.email);
         return;
       }
       toast.success("Signed in successfully!");
-      const me = payload as { role?: string };
+      const me = payload as { role?: string; profiles?: { id: string; role: string; approved?: boolean; disabled?: boolean }[] };
+      const profiles = me?.profiles;
+      if (profiles && profiles.length > 1) {
+        navigate("/choose-profile", { replace: true });
+        return;
+      }
+      if (profiles?.length === 1) {
+        const p = profiles[0];
+        if (p.disabled) {
+          navigate("/choose-profile", { replace: true });
+          return;
+        }
+        setStoredActiveProfileId(profiles[0].id);
+        if (p.role === "DOCTOR") navigate(p.approved ? "/doctor" : "/doctor/pending", { replace: true });
+        else if (p.role === "ADMIN") navigate("/admin", { replace: true });
+        else navigate("/patient", { replace: true });
+        return;
+      }
       if (me?.role === "DOCTOR") navigate("/doctor", { replace: true });
+      else if (me?.role === "ADMIN") navigate("/admin", { replace: true });
       else navigate("/patient", { replace: true });
     }
   };
@@ -42,8 +61,26 @@ function Login() {
     const result = await dispatch(verifyLoginOtp({ email: otpEmail, code: code.trim() }));
     if (verifyLoginOtp.fulfilled.match(result)) {
       toast.success("Signed in successfully!");
-      const me = result.payload as { role?: string };
+      const me = result.payload as { role?: string; profiles?: { id: string; role: string; approved?: boolean; disabled?: boolean }[] };
+      const profiles = me?.profiles;
+      if (profiles && profiles.length > 1) {
+        navigate("/choose-profile", { replace: true });
+        return;
+      }
+      if (profiles?.length === 1) {
+        const p = profiles[0];
+        if (p.disabled) {
+          navigate("/choose-profile", { replace: true });
+          return;
+        }
+        setStoredActiveProfileId(profiles[0].id);
+        if (p.role === "DOCTOR") navigate(p.approved ? "/doctor" : "/doctor/pending", { replace: true });
+        else if (p.role === "ADMIN") navigate("/admin", { replace: true });
+        else navigate("/patient", { replace: true });
+        return;
+      }
       if (me?.role === "DOCTOR") navigate("/doctor", { replace: true });
+      else if (me?.role === "ADMIN") navigate("/admin", { replace: true });
       else navigate("/patient", { replace: true });
     }
   };

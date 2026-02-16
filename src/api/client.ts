@@ -1,5 +1,5 @@
 import { API_URL } from "./config";
-import { getStoredToken, clearStoredAuth, setStoredToken } from "../store/authStorage";
+import { getStoredToken, clearStoredAuth, setStoredToken, getStoredActiveProfileId } from "../store/authStorage";
 import { refreshTokenRequest } from "./authService";
 
 export interface FetchOptions extends RequestInit {
@@ -30,9 +30,11 @@ export async function fetchApi<T = unknown>(
 
   // build a request function so we can retry easily
   const doFetch = async (accessToken: string | null): Promise<Response> => {
+    const activeProfileId = getStoredActiveProfileId();
     const headers: HeadersInit = {
       ...(options.body ? { "Content-Type": "application/json" } : {}),
       ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+      ...(activeProfileId ? { "X-Active-Profile-Id": activeProfileId } : {}),
       ...options.headers,
     };
 

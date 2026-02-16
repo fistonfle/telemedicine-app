@@ -2,21 +2,30 @@ import { useEffect } from "react";
 import { NavLink, Outlet, useNavigate } from "react-router-dom";
 import { fetchMe, logout } from "../../store/slices/authSlice";
 import { useAppDispatch, useAppSelector } from "../../store";
+import { setStoredActiveProfileId } from "../../store/authStorage";
 
 export default function PatientLayout() {
   const navigate = useNavigate();
   const dispatch = useAppDispatch();
   const me = useAppSelector((s) => s.auth.user);
+  const profiles = me?.profiles ?? [];
+  const doctorProfile = profiles.find((p) => p.role === "DOCTOR");
 
   useEffect(() => {
     dispatch(fetchMe());
   }, [dispatch]);
 
-  useEffect(() => {
-    if (me?.role === "DOCTOR") {
+  const handleRequestDoctor = () => {
+    navigate("/patient/request-doctor");
+  };
+
+  const handleSwitchToDoctor = () => {
+    if (doctorProfile) {
+      setStoredActiveProfileId(doctorProfile.id);
+      dispatch(fetchMe());
       navigate("/doctor", { replace: true });
     }
-  }, [me?.role, navigate]);
+  };
 
   const navItems = [
     { path: "/patient", icon: "dashboard", label: "Dashboard" },
@@ -71,6 +80,23 @@ export default function PatientLayout() {
               <p className="text-xs text-slate-500 truncate">Patient</p>
             </div>
           </div>
+          {doctorProfile ? (
+            <button
+              onClick={handleSwitchToDoctor}
+              className="flex items-center gap-3 w-full px-3 py-2.5 rounded-lg text-sm font-medium text-emerald-600 hover:bg-emerald-50 transition-colors"
+            >
+              <span className="material-icons text-xl">medical_services</span>
+              Switch to Doctor
+            </button>
+          ) : (
+            <button
+              onClick={handleRequestDoctor}
+              className="flex items-center gap-3 w-full px-3 py-2.5 rounded-lg text-sm font-medium text-emerald-600 hover:bg-emerald-50 transition-colors"
+            >
+              <span className="material-icons text-xl">medical_services</span>
+              Request doctor profile
+            </button>
+          )}
           <button
             onClick={() => { dispatch(logout()); navigate("/"); }}
             className="flex items-center gap-3 w-full px-3 py-2.5 rounded-lg text-sm font-medium text-slate-600 hover:bg-slate-100 transition-colors"

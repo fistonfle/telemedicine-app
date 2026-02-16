@@ -54,13 +54,13 @@ function BookAppointment() {
     setSelectedDate(date);
   };
 
-  const handleConfirm = async () => {
+  const handleConfirm = async (reason: string) => {
     const result = await dispatch(createAppointmentThunk({
       doctorId: selectedDoctor?.id,
       doctor: selectedDoctor ?? undefined,
       date: selectedDate ?? undefined,
       slot: selectedSlot ?? undefined,
-      reasonForVisit,
+      reasonForVisit: reason,
     }));
     if (createAppointmentThunk.fulfilled.match(result)) {
       toast.success("Appointment booked successfully");

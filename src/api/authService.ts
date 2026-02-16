@@ -1,6 +1,6 @@
 import { API_URL } from "./config";
 import { fetchApi } from "./client";
-import type { User, Profile, SignupData, UpdateProfileData } from "../types";
+import type { User, Profile, ProfileSummary, SignupData, UpdateProfileData } from "../types";
 import { clearStoredAuth, getStoredRefreshToken, setStoredRefreshToken, setStoredToken } from "../store/authStorage";
 
 export type RefreshResponse = {
@@ -9,7 +9,27 @@ export type RefreshResponse = {
 };
 
 export async function getMe(): Promise<User | null> {
-  return fetchApi<User | null>("/api/me");
+  const raw = await fetchApi<Record<string, unknown> | null>("/api/me");
+  if (!raw) return null;
+  const profiles = raw.profiles as Array<{ id?: string; role?: string; names?: string; specialty?: string }> | undefined;
+  const list: ProfileSummary[] = Array.isArray(profiles)
+    ? profiles.map((p) => ({
+        id: String(p?.id ?? ""),
+        role: (p?.role ?? "PATIENT") as "DOCTOR" | "PATIENT" | "ADMIN",
+        names: p?.names,
+        specialty: p?.specialty,
+        approved: p?.approved ?? null,
+        disabled: p?.disabled ?? null,
+      }))
+    : undefined;
+  return {
+    id: raw.userId != null ? String(raw.userId) : undefined,
+    profileId: raw.profileId != null ? String(raw.profileId) : undefined,
+    role: (raw.role as User["role"]) ?? undefined,
+    names: (raw.names as string) ?? undefined,
+    email: (raw.email as string) ?? undefined,
+    profiles: list,
+  };
 }
 
 export async function getProfile(): Promise<Profile | null> {
@@ -171,4 +191,29 @@ export async function resendVerificationLink(email: string): Promise<MessageResp
 
 export function logout(): void {
   clearStoredAuth();
+}
+
+/** Add a second profile (e.g. PATIENT for a doctor, or DOCTOR for a patient - pending approval). Returns the new profile summary. */
+export async function addProfile(params: {
+  role: "DOCTOR" | "PATIENT";
+  names?: string;
+  specialty?: string;
+  licenseNumber?: string;
+  hospitalAffiliation?: string;
+  yearsExperience?: number;
+  practiceDescription?: string;
+}): Promise<ProfileSummary> {
+  const res = await fetchApi<ProfileSummary>("/api/me/profiles", {
+    method: "POST",
+    body: JSON.stringify({
+      role: params.role,
+      names: params.names ?? null,
+      specialty: params.specialty ?? null,
+      licenseNumber: params.licenseNumber ?? null,
+      hospitalAffiliation: params.hospitalAffiliation ?? null,
+      yearsExperience: params.yearsExperience ?? null,
+      practiceDescription: params.practiceDescription ?? null,
+    }),
+  });
+  return res;
 }
