@@ -41,8 +41,8 @@ function renderLogin() {
 describe("Login page", () => {
   it("renders sign in form with email and password fields", () => {
     renderLogin();
-    expect(screen.getByLabelText(/email/i)).toBeInTheDocument();
-    expect(screen.getByLabelText(/password/i)).toBeInTheDocument();
+    expect(screen.getByPlaceholderText("niyonzima@gmail.com")).toBeInTheDocument();
+    expect(screen.getByPlaceholderText("••••••••")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /sign in/i })).toBeInTheDocument();
   });
 
@@ -58,8 +58,8 @@ describe("Login page", () => {
 
   it("calls login when form is submitted", async () => {
     renderLogin();
-    fireEvent.change(screen.getByLabelText(/email/i), { target: { value: "test@example.com" } });
-    fireEvent.change(screen.getByLabelText(/password/i), { target: { value: "password123" } });
+    fireEvent.change(screen.getByPlaceholderText("niyonzima@gmail.com"), { target: { value: "test@example.com" } });
+    fireEvent.change(screen.getByPlaceholderText("••••••••"), { target: { value: "password123" } });
     fireEvent.click(screen.getByRole("button", { name: /sign in/i }));
     // Dispatch is async; Login component will handle the result
     expect(screen.getByRole("button", { name: /sign in/i })).toBeInTheDocument();

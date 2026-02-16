@@ -4,6 +4,7 @@ import { MemoryRouter } from "react-router-dom";
 import { Provider } from "react-redux";
 import { configureStore } from "@reduxjs/toolkit";
 import App from "../App";
+import { ToastProvider } from "../components/ui/Toast";
 import authReducer from "../store/slices/authSlice";
 import patientReducer from "../store/slices/patientSlice";
 import doctorReducer from "../store/slices/doctorSlice";
@@ -25,11 +26,13 @@ const store = configureStore({
 
 function renderWithProviders(ui: React.ReactElement, { route = "/" } = {}) {
   return render(
-    <Provider store={store}>
-      <MemoryRouter initialEntries={[route]}>
-        {ui}
-      </MemoryRouter>
-    </Provider>
+    <ToastProvider>
+      <Provider store={store}>
+        <MemoryRouter initialEntries={[route]}>
+          {ui}
+        </MemoryRouter>
+      </Provider>
+    </ToastProvider>
   );
 }
 
@@ -51,7 +54,7 @@ describe("App routing", () => {
 
   it("renders DoctorRegistration at /register/doctor", () => {
     renderWithProviders(<App />, { route: "/register/doctor" });
-    expect(screen.getByText(/telemed/i)).toBeInTheDocument();
+    expect(screen.getAllByText(/telemed/i).length).toBeGreaterThan(0);
   });
 
   it("redirects unknown routes to Login", () => {

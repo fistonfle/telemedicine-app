@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import ResetPassword from "../pages/ResetPassword";
 import * as authService from "../api/authService";
@@ -24,8 +24,8 @@ describe("ResetPassword page", () => {
   it("renders set new password form when token is present", () => {
     renderResetPassword();
     expect(screen.getByRole("heading", { name: /set new password/i })).toBeInTheDocument();
-    expect(screen.getByLabelText(/new password/i)).toBeInTheDocument();
-    expect(screen.getByLabelText(/confirm password/i)).toBeInTheDocument();
+    const passwordFields = screen.getAllByPlaceholderText("••••••••");
+    expect(passwordFields).toHaveLength(2);
     expect(screen.getByRole("button", { name: /reset password/i })).toBeInTheDocument();
   });
 
@@ -38,10 +38,11 @@ describe("ResetPassword page", () => {
   it("calls resetPassword with token and new password on submit", async () => {
     vi.mocked(authService.resetPassword).mockResolvedValue({ message: "Your password has been reset." });
     renderResetPassword();
-    fireEvent.change(screen.getByLabelText(/new password/i), { target: { value: "newPassword123" } });
-    fireEvent.change(screen.getByLabelText(/confirm password/i), { target: { value: "newPassword123" } });
+    const passwordInputs = screen.getAllByPlaceholderText("••••••••");
+    fireEvent.change(passwordInputs[0], { target: { value: "newPassword123" } });
+    fireEvent.change(passwordInputs[1], { target: { value: "newPassword123" } });
     fireEvent.click(screen.getByRole("button", { name: /reset password/i }));
-    expect(authService.resetPassword).toHaveBeenCalledWith("valid-token-123", "newPassword123");
+    await waitFor(() => expect(authService.resetPassword).toHaveBeenCalledWith("valid-token-123", "newPassword123"));
     expect(await screen.findByText(/your password has been reset/i)).toBeInTheDocument();
   });
 });

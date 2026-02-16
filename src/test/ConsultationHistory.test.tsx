@@ -54,18 +54,18 @@ describe("ConsultationHistory", () => {
     vi.clearAllMocks();
   });
 
-  it("renders Consultation History heading", () => {
+  it("renders Visit history heading", () => {
     renderConsultationHistory();
-    expect(screen.getByRole("heading", { name: /consultation history/i })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: /visit history/i })).toBeInTheDocument();
   });
 
   it("renders search input for consultations", () => {
     renderConsultationHistory();
-    expect(screen.getByPlaceholderText(/search consultations/i)).toBeInTheDocument();
+    expect(screen.getByPlaceholderText(/search by diagnosis or notes/i)).toBeInTheDocument();
   });
 
-  it("renders Total Consultations summary", () => {
+  it("renders Total visits summary", () => {
     renderConsultationHistory();
-    expect(screen.getByText(/total consultations/i)).toBeInTheDocument();
+    expect(screen.getByText(/total visits/i)).toBeInTheDocument();
   });
 });

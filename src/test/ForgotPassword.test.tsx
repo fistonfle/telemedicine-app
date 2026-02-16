@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import ForgotPassword from "../pages/ForgotPassword";
 import * as authService from "../api/authService";
@@ -24,7 +24,7 @@ describe("ForgotPassword page", () => {
   it("renders forgot password form with email field", () => {
     renderForgotPassword();
     expect(screen.getByRole("heading", { name: /forgot password/i })).toBeInTheDocument();
-    expect(screen.getByLabelText(/email/i)).toBeInTheDocument();
+    expect(screen.getByPlaceholderText(/you@example\.com/i)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /send reset link/i })).toBeInTheDocument();
   });
 
@@ -36,10 +36,9 @@ describe("ForgotPassword page", () => {
   it("calls forgotPassword and shows success message on submit", async () => {
     vi.mocked(authService.forgotPassword).mockResolvedValue({ message: "If an account exists..." });
     renderForgotPassword();
-    fireEvent.change(screen.getByLabelText(/email/i), { target: { value: "user@example.com" } });
+    fireEvent.change(screen.getByPlaceholderText(/you@example\.com/i), { target: { value: "user@example.com" } });
     fireEvent.click(screen.getByRole("button", { name: /send reset link/i }));
-    expect(authService.forgotPassword).toHaveBeenCalledWith("user@example.com");
-    // After async resolution, success message or back to sign in should appear
+    await waitFor(() => expect(authService.forgotPassword).toHaveBeenCalledWith("user@example.com"));
     expect(await screen.findByText(/if an account exists/i)).toBeInTheDocument();
   });
 });

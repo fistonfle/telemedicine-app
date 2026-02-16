@@ -1,0 +1,35 @@
+# Frontend: install, test, build
+stages:
+  - test
+  - build
+
+variables:
+  npm_config_cache: "$CI_PROJECT_DIR/.npm"
+
+cache:
+  key: ${CI_COMMIT_REF_SLUG}
+  paths:
+    - .npm
+    - node_modules
+
+frontend-test:
+  image: node:20-alpine
+  stage: test
+  script:
+    - npm ci
+    - npm run test
+  only:
+    - main
+    - merge_requests
+
+frontend-build:
+  image: node:20-alpine
+  stage: build
+  script:
+    - npm ci
+    - npm run build
+  artifacts:
+    paths:
+      - dist
+  only:
+    - main
