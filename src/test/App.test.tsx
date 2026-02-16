@@ -8,9 +8,9 @@ import authReducer from "../store/slices/authSlice";
 import patientReducer from "../store/slices/patientSlice";
 import doctorReducer from "../store/slices/doctorSlice";
 import bookingReducer from "../store/slices/bookingSlice";
-import * as apiServices from "../api/services";
+import * as authStorage from "../store/authStorage";
 
-vi.mock("../api/services", () => ({
+vi.mock("../store/authStorage", () => ({
   getStoredToken: vi.fn(),
 }));
 
@@ -35,8 +35,8 @@ function renderWithProviders(ui: React.ReactElement, { route = "/" } = {}) {
 
 describe("App routing", () => {
   beforeEach(() => {
-    vi.mocked(apiServices.getStoredToken).mockReset();
-    vi.mocked(apiServices.getStoredToken).mockReturnValue(undefined);
+    vi.mocked(authStorage.getStoredToken).mockReset();
+    vi.mocked(authStorage.getStoredToken).mockReturnValue(null);
   });
 
   it("renders Login at root path", () => {
@@ -60,8 +60,18 @@ describe("App routing", () => {
   });
 
   it("redirects /patient to Login when no token", () => {
-    vi.mocked(apiServices.getStoredToken).mockReturnValue(null);
+    vi.mocked(authStorage.getStoredToken).mockReturnValue(null);
     renderWithProviders(<App />, { route: "/patient" });
     expect(screen.getByRole("heading", { name: /sign in/i })).toBeInTheDocument();
+  });
+
+  it("renders ForgotPassword at /forgot-password", () => {
+    renderWithProviders(<App />, { route: "/forgot-password" });
+    expect(screen.getByRole("heading", { name: /forgot password/i })).toBeInTheDocument();
+  });
+
+  it("renders ResetPassword at /reset-password with token", () => {
+    renderWithProviders(<App />, { route: "/reset-password?token=abc123" });
+    expect(screen.getByRole("heading", { name: /set new password/i })).toBeInTheDocument();
   });
 });

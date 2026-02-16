@@ -1,33 +1,56 @@
 import { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
+import { Formik, Form, Field } from "formik";
+import * as Yup from "yup";
 import { loginUser, verifyLoginOtp, clearError } from "../store/slices/authSlice";
 import { useAppDispatch, useAppSelector } from "../store";
 import { useToast } from "../components/ui/Toast";
 import * as authService from "../api/authService";
+import { setStoredActiveProfileId } from "../store/authStorage";
+
+const loginSchema = Yup.object({
+  email: Yup.string().trim().required("Email is required").email("Enter a valid email address"),
+  password: Yup.string().required("Password is required"),
+});
 
 function Login() {
   const navigate = useNavigate();
   const dispatch = useAppDispatch();
   const toast = useToast();
   const { loading, error } = useAppSelector((s) => s.auth);
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
   const [otpEmail, setOtpEmail] = useState<string | null>(null);
   const [code, setCode] = useState("");
   const [resendOtpLoading, setResendOtpLoading] = useState(false);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    const result = await dispatch(loginUser({ email: email.trim(), password }));
+  const handleSubmit = async (values: { email: string; password: string }) => {
+    const result = await dispatch(loginUser({ email: values.email.trim(), password: values.password }));
     if (loginUser.fulfilled.match(result)) {
-      const payload = result.payload as { requiresOtp?: boolean; email?: string } | { id: string; role?: string };
+      const payload = result.payload as { requiresOtp?: boolean; email?: string } | { role?: string; profiles?: { id: string; role: string }[] };
       if (payload && "requiresOtp" in payload && payload.requiresOtp && payload.email) {
         setOtpEmail(payload.email);
         return;
       }
       toast.success("Signed in successfully!");
-      const me = payload as { role?: string };
+      const me = payload as { role?: string; profiles?: { id: string; role: string; approved?: boolean; disabled?: boolean }[] };
+      const profiles = me?.profiles;
+      if (profiles && profiles.length > 1) {
+        navigate("/choose-profile", { replace: true });
+        return;
+      }
+      if (profiles?.length === 1) {
+        const p = profiles[0];
+        if (p.disabled) {
+          navigate("/choose-profile", { replace: true });
+          return;
+        }
+        setStoredActiveProfileId(profiles[0].id);
+        if (p.role === "DOCTOR") navigate(p.approved ? "/doctor" : "/doctor/pending", { replace: true });
+        else if (p.role === "ADMIN") navigate("/admin", { replace: true });
+        else navigate("/patient", { replace: true });
+        return;
+      }
       if (me?.role === "DOCTOR") navigate("/doctor", { replace: true });
+      else if (me?.role === "ADMIN") navigate("/admin", { replace: true });
       else navigate("/patient", { replace: true });
     }
   };
@@ -38,8 +61,26 @@ function Login() {
     const result = await dispatch(verifyLoginOtp({ email: otpEmail, code: code.trim() }));
     if (verifyLoginOtp.fulfilled.match(result)) {
       toast.success("Signed in successfully!");
-      const me = result.payload as { role?: string };
+      const me = result.payload as { role?: string; profiles?: { id: string; role: string; approved?: boolean; disabled?: boolean }[] };
+      const profiles = me?.profiles;
+      if (profiles && profiles.length > 1) {
+        navigate("/choose-profile", { replace: true });
+        return;
+      }
+      if (profiles?.length === 1) {
+        const p = profiles[0];
+        if (p.disabled) {
+          navigate("/choose-profile", { replace: true });
+          return;
+        }
+        setStoredActiveProfileId(profiles[0].id);
+        if (p.role === "DOCTOR") navigate(p.approved ? "/doctor" : "/doctor/pending", { replace: true });
+        else if (p.role === "ADMIN") navigate("/admin", { replace: true });
+        else navigate("/patient", { replace: true });
+        return;
+      }
       if (me?.role === "DOCTOR") navigate("/doctor", { replace: true });
+      else if (me?.role === "ADMIN") navigate("/admin", { replace: true });
       else navigate("/patient", { replace: true });
     }
   };
@@ -124,57 +165,70 @@ function Login() {
               </p>
             </form>
           ) : (
-            <form onSubmit={handleSubmit} className="space-y-4">
-              {displayError && (
-                <div className="flex items-center gap-2 py-2 px-3 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-sm">
-                  <span className="material-icons text-red-600 dark:text-red-400 text-base shrink-0">error_outline</span>
-                  <p className="flex-1 text-red-700 dark:text-red-300">{displayError}</p>
+            <Formik
+              initialValues={{ email: "", password: "" }}
+              validationSchema={loginSchema}
+              onSubmit={handleSubmit}
+            >
+              {({ errors, touched }) => (
+                <Form className="space-y-4">
+                  {displayError && (
+                    <div className="flex items-center gap-2 py-2 px-3 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-sm">
+                      <span className="material-icons text-red-600 dark:text-red-400 text-base shrink-0">error_outline</span>
+                      <p className="flex-1 text-red-700 dark:text-red-300">{displayError}</p>
+                      <button type="button" onClick={() => dispatch(clearError())} className="shrink-0 p-0.5 rounded hover:bg-red-100 dark:hover:bg-red-800/50 text-red-600 dark:text-red-400" aria-label="Dismiss">
+                        <span className="material-icons text-base">close</span>
+                      </button>
+                    </div>
+                  )}
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Email</label>
+                    <Field
+                      name="email"
+                      type="email"
+                      placeholder="niyonzima@gmail.com"
+                      autoComplete="email"
+                      className={`w-full px-4 py-2.5 border rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-2 focus:ring-primary outline-none ${
+                        touched.email && errors.email ? "border-red-500" : "border-slate-200 dark:border-slate-700"
+                      }`}
+                    />
+                    {touched.email && errors.email && <p className="mt-1 text-sm text-red-600 dark:text-red-400">{errors.email}</p>}
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Password</label>
+                    <Field
+                      name="password"
+                      type="password"
+                      placeholder="••••••••"
+                      autoComplete="current-password"
+                      className={`w-full px-4 py-2.5 border rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-2 focus:ring-primary outline-none ${
+                        touched.password && errors.password ? "border-red-500" : "border-slate-200 dark:border-slate-700"
+                      }`}
+                    />
+                    {touched.password && errors.password && <p className="mt-1 text-sm text-red-600 dark:text-red-400">{errors.password}</p>}
+                  </div>
+                  <div className="flex justify-end">
+                    <Link to="/forgot-password" className="text-sm text-primary font-medium hover:underline">
+                      Forgot password?
+                    </Link>
+                  </div>
                   <button
-                    type="button"
-                    onClick={() => dispatch(clearError())}
-                    className="shrink-0 p-0.5 rounded hover:bg-red-100 dark:hover:bg-red-800/50 text-red-600 dark:text-red-400"
-                    aria-label="Dismiss"
+                    type="submit"
+                    disabled={loading}
+                    className="w-full py-3 bg-primary text-white font-semibold rounded-lg hover:bg-primary/90 disabled:opacity-60 flex items-center justify-center gap-2"
                   >
-                    <span className="material-icons text-base">close</span>
+                    {loading ? (
+                      <>
+                        <span className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                        Signing in...
+                      </>
+                    ) : (
+                      "Sign in"
+                    )}
                   </button>
-                </div>
+                </Form>
               )}
-              <div>
-                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Email</label>
-                <input
-                  type="email"
-                  value={email}
-                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setEmail(e.target.value)}
-                  required
-                  className="w-full px-4 py-2.5 border border-slate-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-2 focus:ring-primary outline-none"
-                  placeholder="you@example.com"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Password</label>
-                <input
-                  type="password"
-                  value={password}
-                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setPassword(e.target.value)}
-                  required
-                  className="w-full px-4 py-2.5 border border-slate-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-2 focus:ring-primary outline-none"
-                />
-              </div>
-              <button
-                type="submit"
-                disabled={loading}
-                className="w-full py-3 bg-primary text-white font-semibold rounded-lg hover:bg-primary/90 disabled:opacity-60 flex items-center justify-center gap-2"
-              >
-                {loading ? (
-                  <>
-                    <span className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                    Signing in...
-                  </>
-                ) : (
-                  "Sign in"
-                )}
-              </button>
-            </form>
+            </Formik>
           )}
 
           <p className="mt-6 text-center text-sm text-slate-500 dark:text-slate-400">

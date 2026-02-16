@@ -51,6 +51,11 @@ describe("Login page", () => {
     expect(screen.getByRole("link", { name: /sign up/i })).toHaveAttribute("href", "/signup");
   });
 
+  it("renders link to forgot password", () => {
+    renderLogin();
+    expect(screen.getByRole("link", { name: /forgot password/i })).toHaveAttribute("href", "/forgot-password");
+  });
+
   it("calls login when form is submitted", async () => {
     renderLogin();
     fireEvent.change(screen.getByLabelText(/email/i), { target: { value: "test@example.com" } });

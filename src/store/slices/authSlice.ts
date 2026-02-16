@@ -1,6 +1,6 @@
 import { createSlice, createAsyncThunk } from "@reduxjs/toolkit";
 import * as authService from "../../api/authService";
-import { getStoredToken } from "../authStorage";
+import { getStoredToken, getStoredActiveProfileId, setStoredActiveProfileId } from "../authStorage";
 import type { User, Profile, UpdateProfileData, SignupData } from "../../types";
 
 export const fetchMe = createAsyncThunk(
@@ -127,6 +127,10 @@ const authSlice = createSlice({
         state.loading = false;
         state.user = action.payload;
         state.isAuthenticated = !!action.payload || !!getStoredToken();
+        const user = action.payload as { profiles?: { id: string }[] } | null;
+        if (user?.profiles?.length === 1 && !getStoredActiveProfileId()) {
+          setStoredActiveProfileId(user.profiles[0].id);
+        }
       })
       .addCase(fetchMe.rejected, (state, action) => {
         state.loading = false;
