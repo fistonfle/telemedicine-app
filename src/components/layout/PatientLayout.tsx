@@ -2,18 +2,26 @@ import { useEffect } from "react";
 import { NavLink, Outlet, useNavigate } from "react-router-dom";
 import { fetchMe, logout } from "../../store/slices/authSlice";
 import { useAppDispatch, useAppSelector } from "../../store";
-import { setStoredActiveProfileId } from "../../store/authStorage";
+import { getStoredActiveProfileId, setStoredActiveProfileId } from "../../store/authStorage";
 
 export default function PatientLayout() {
   const navigate = useNavigate();
   const dispatch = useAppDispatch();
   const me = useAppSelector((s) => s.auth.user);
   const profiles = me?.profiles ?? [];
+  const patientProfile = profiles.find((p) => p.role === "PATIENT");
   const doctorProfile = profiles.find((p) => p.role === "DOCTOR");
 
   useEffect(() => {
     dispatch(fetchMe());
   }, [dispatch]);
+
+  // Use current selected profile for patient API calls: set active profile to PATIENT when in patient layout so appointments etc. are fetched for this profile.
+  useEffect(() => {
+    if (patientProfile && getStoredActiveProfileId() !== patientProfile.id) {
+      setStoredActiveProfileId(patientProfile.id);
+    }
+  }, [patientProfile]);
 
   const handleRequestDoctor = () => {
     navigate("/patient/request-doctor");

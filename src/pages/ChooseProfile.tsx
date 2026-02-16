@@ -1,28 +1,32 @@
 import { useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAppSelector } from "../store";
-import { setStoredActiveProfileId } from "../store/authStorage";
+import { getStoredActiveProfileId, setStoredActiveProfileId } from "../store/authStorage";
 import type { ProfileSummary } from "../types";
 
 export default function ChooseProfile() {
   const navigate = useNavigate();
   const user = useAppSelector((s) => s.auth.user);
-  const profiles = user?.profiles;
-
-  const enabledProfiles = profiles?.filter((p) => !p.disabled) ?? [];
+  const profiles = user?.profiles ?? [];
 
   useEffect(() => {
     if (!user) {
       navigate("/", { replace: true });
       return;
     }
-    if (profiles?.length === 1) {
+    if (profiles.length === 1) {
       const p = profiles[0];
       if (p.disabled) return;
       setStoredActiveProfileId(p.id);
       if (p.role === "DOCTOR") navigate(p.approved ? "/doctor" : "/doctor/pending", { replace: true });
       else if (p.role === "ADMIN") navigate("/admin", { replace: true });
       else navigate("/patient", { replace: true });
+      return;
+    }
+    if (profiles.length > 1) {
+      const storedId = getStoredActiveProfileId();
+      const valid = storedId && profiles.some((x) => x.id === storedId);
+      if (!valid) setStoredActiveProfileId(profiles[0].id);
     }
   }, [user, profiles, navigate]);
 

@@ -19,6 +19,14 @@ export default function DoctorLayout() {
     dispatch(fetchMe());
   }, [dispatch]);
 
+  const doctorProfile = profiles.find((p) => p.role === "DOCTOR");
+  // Use current selected profile for doctor API calls: set active profile to DOCTOR when in doctor layout so appointments etc. are fetched for this profile.
+  useEffect(() => {
+    if (doctorProfile && getStoredActiveProfileId() !== doctorProfile.id) {
+      setStoredActiveProfileId(doctorProfile.id);
+    }
+  }, [doctorProfile]);
+
   const activeProfileId = getStoredActiveProfileId();
   const activeProfile = activeProfileId ? profiles.find((p) => p.id === activeProfileId) : profiles[0];
   useEffect(() => {
