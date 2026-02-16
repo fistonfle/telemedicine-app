@@ -259,18 +259,6 @@ function SignUp() {
           </div>
         </div>
       </main>
-
-      <div className="mt-12 text-slate-400 flex items-center gap-4 opacity-50">
-        <div className="w-8 h-8 rounded-full bg-slate-200 dark:bg-slate-800 flex items-center justify-center overflow-hidden">
-          <img alt="Healthcare professional" className="w-full h-full object-cover" src="https://images.unsplash.com/photo-1559839734-2b71ea197ec2?w=64&h=64&fit=crop&rounded" />
-        </div>
-        <div className="w-8 h-8 rounded-full bg-slate-200 dark:bg-slate-800 flex items-center justify-center overflow-hidden">
-          <img alt="Medical equipment" className="w-full h-full object-cover" src="https://images.unsplash.com/photo-1579684385127-1ef15d508118?w=64&h=64&fit=crop&rounded" />
-        </div>
-        <div className="w-8 h-8 rounded-full bg-slate-200 dark:bg-slate-800 flex items-center justify-center overflow-hidden">
-          <img alt="Stethoscope" className="w-full h-full object-cover" src="https://images.unsplash.com/photo-1551190822-a9333d879b1f?w=64&h=64&fit=crop&rounded" />
-        </div>
-      </div>
     </div>
   );
 }
