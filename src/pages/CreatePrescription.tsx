@@ -52,13 +52,9 @@ const testSchema = Yup.object({
 });
 
 const consultationSchema = Yup.object({
-  requiresLabTest: Yup.boolean().nullable().required("Please indicate whether the next step requires lab tests"),
+  requiresLabTest: Yup.boolean().nullable(),
   labResultsSameDay: Yup.boolean().nullable(),
   labRequiresFollowUp: Yup.boolean().nullable(),
-}).test("labOptions", "Please indicate when results will be ready: same day, follow-up, or both.", function () {
-  const { requiresLabTest, labResultsSameDay, labRequiresFollowUp } = this.parent as { requiresLabTest: boolean | null; labResultsSameDay: boolean | null; labRequiresFollowUp: boolean | null };
-  if (requiresLabTest !== true) return true;
-  return labResultsSameDay === true || labRequiresFollowUp === true;
 });
 
 const DOSAGE_UNITS = [
@@ -675,7 +671,7 @@ function CreatePrescription() {
               diagnosis: "", notes: "", temperature: "", weight: "", height: "",
               bloodPressureSystolic: "", bloodPressureDiastolic: "",
               heartRate: "", respiratoryRate: "", oxygenSaturation: "",
-              requiresLabTest: null as boolean | null, labResultsSameDay: null as boolean | null, labRequiresFollowUp: null as boolean | null,
+              requiresLabTest: false as boolean | null, labResultsSameDay: null as boolean | null, labRequiresFollowUp: null as boolean | null,
             }}
             validationSchema={consultationSchema}
             onSubmit={(values) => handleCreateConsultation(values)}
@@ -684,9 +680,6 @@ function CreatePrescription() {
               <form onSubmit={handleSubmit} className="space-y-4">
                 {error && (
                   <div className="bg-red-50 border border-red-200 rounded-lg p-3 text-red-700 text-sm">{error}</div>
-                )}
-                {errors.requiresLabTest && (
-                  <div className="text-red-600 text-sm">{errors.requiresLabTest}</div>
                 )}
                 <p className="text-sm font-medium text-slate-700 mb-3">Vital signs (in-clinic measures)</p>
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -798,9 +791,6 @@ function CreatePrescription() {
                             <span>Follow-up needed — some tests require patient to return for results</span>
                           </label>
                         </div>
-                        {errors.labOptions && (
-                          <div className="text-red-600 text-sm mt-2">{errors.labOptions}</div>
-                        )}
                       </div>
                     )}
                   </div>

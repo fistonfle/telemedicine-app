@@ -118,6 +118,9 @@ function Prescriptions() {
             <thead>
               <tr className="border-b border-slate-200 bg-slate-50/50">
                 <th className="text-left py-4 px-6 text-xs font-semibold text-slate-500 uppercase tracking-wider">
+                  Date ordered
+                </th>
+                <th className="text-left py-4 px-6 text-xs font-semibold text-slate-500 uppercase tracking-wider">
                   Medication
                 </th>
                 <th className="text-left py-4 px-6 text-xs font-semibold text-slate-500 uppercase tracking-wider">
@@ -128,9 +131,6 @@ function Prescriptions() {
                 </th>
                 <th className="text-left py-4 px-6 text-xs font-semibold text-slate-500 uppercase tracking-wider">
                   Doctor
-                </th>
-                <th className="text-left py-4 px-6 text-xs font-semibold text-slate-500 uppercase tracking-wider">
-                  Date ordered
                 </th>
                 <th className="text-left py-4 px-6 text-xs font-semibold text-slate-500 uppercase tracking-wider">
                   Status
@@ -146,6 +146,9 @@ function Prescriptions() {
                   key={rx.id}
                   className="border-b border-slate-100 hover:bg-slate-50/50"
                 >
+                  <td className="py-4 px-6 text-slate-600">
+                    {rx.orderedAt ?? "—"}
+                  </td>
                   <td className="py-4 px-6">
                     <div className="flex items-center gap-3">
                       <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center">
@@ -155,7 +158,6 @@ function Prescriptions() {
                       </div>
                       <div>
                         <p className="font-medium text-slate-900">{rx.medication}</p>
-                        <p className="text-xs text-slate-500">Expires {rx.expires}</p>
                       </div>
                     </div>
                   </td>
@@ -174,9 +176,6 @@ function Prescriptions() {
                       </div>
                       <span className="text-slate-600">{rx.doctor}</span>
                     </div>
-                  </td>
-                  <td className="py-4 px-6 text-slate-600">
-                    {rx.orderedAt ?? "—"}
                   </td>
                   <td className="py-4 px-6">
                     <Badge variant={rx.status === "ready" ? "approved" : rx.status === "processing" ? "pending" : "completed"}>
