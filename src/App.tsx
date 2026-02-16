@@ -4,6 +4,8 @@ import SignUp from "./pages/SignUp";
 import Login from "./pages/Login";
 import ChooseProfile from "./pages/ChooseProfile";
 import VerifyEmail from "./pages/VerifyEmail";
+import ForgotPassword from "./pages/ForgotPassword";
+import ResetPassword from "./pages/ResetPassword";
 import AccountCreated from "./pages/AccountCreated";
 import DoctorRegistration from "./pages/DoctorRegistration";
 import PatientLayout from "./components/layout/PatientLayout";
@@ -43,6 +45,8 @@ function App() {
       <Route path="/choose-profile" element={<ProtectedRoute><ChooseProfile /></ProtectedRoute>} />
       <Route path="/signup" element={<SignUp />} />
       <Route path="/verify-email" element={<VerifyEmail />} />
+      <Route path="/forgot-password" element={<ForgotPassword />} />
+      <Route path="/reset-password" element={<ResetPassword />} />
       <Route path="/account-created" element={<AccountCreated />} />
       <Route path="/register/doctor" element={<DoctorRegistration />} />
       <Route

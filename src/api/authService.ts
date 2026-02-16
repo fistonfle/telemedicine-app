@@ -189,6 +189,35 @@ export async function resendVerificationLink(email: string): Promise<MessageResp
   return res.json() as Promise<MessageResponse>;
 }
 
+/** Request password reset; sends reset link to email if account exists. */
+export async function forgotPassword(email: string): Promise<MessageResponse> {
+  const res = await fetch(`${API_URL}/api/auth/forgot-password`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email: email.trim().toLowerCase() }),
+  });
+  if (!res.ok) {
+    const err = (await res.json().catch(() => ({}))) as { message?: string };
+    throw new Error(err.message || "Request failed.");
+  }
+  return res.json() as Promise<MessageResponse>;
+}
+
+/** Reset password with token from email link. */
+export async function resetPassword(token: string, newPassword: string): Promise<MessageResponse> {
+  const res = await fetch(`${API_URL}/api/auth/reset-password`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ token: token.trim(), newPassword }),
+  });
+  if (!res.ok) {
+    const err = (await res.json().catch(() => ({}))) as { message?: string; details?: string[] };
+    const msg = err.message || (Array.isArray(err.details) ? err.details[0] : undefined) || "Invalid or expired link.";
+    throw new Error(msg);
+  }
+  return res.json() as Promise<MessageResponse>;
+}
+
 export function logout(): void {
   clearStoredAuth();
 }

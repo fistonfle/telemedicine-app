@@ -207,6 +207,11 @@ function Login() {
                     />
                     {touched.password && errors.password && <p className="mt-1 text-sm text-red-600 dark:text-red-400">{errors.password}</p>}
                   </div>
+                  <div className="flex justify-end">
+                    <Link to="/forgot-password" className="text-sm text-primary font-medium hover:underline">
+                      Forgot password?
+                    </Link>
+                  </div>
                   <button
                     type="submit"
                     disabled={loading}
