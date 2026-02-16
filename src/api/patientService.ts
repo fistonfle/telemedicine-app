@@ -184,6 +184,18 @@ export async function getPrescriptions(options?: { page?: number; size?: number 
       ? ((p.doctorName as string).startsWith("Dr.") ? (p.doctorName as string) : `Dr. ${p.doctorName}`)
       : "—";
     const appointmentId = p.appointmentId != null ? String(p.appointmentId) : null;
+    const orderedAt = p.orderedAt != null ? String(p.orderedAt) : null;
+    const formatOrderedAt = (raw: string | null) => {
+      if (!raw) return "—";
+      try {
+        const d = new Date(raw);
+        if (Number.isNaN(d.getTime())) return raw;
+        return d.toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
+      } catch {
+        return raw;
+      }
+    };
+    const orderedAtFormatted = formatOrderedAt(orderedAt);
     const lines = note
       .split("\n")
       .map((l) => l.trim())
@@ -197,6 +209,7 @@ export async function getPrescriptions(options?: { page?: number; size?: number 
         doctor,
         expires: "—",
         status: "ready",
+        orderedAt: orderedAtFormatted,
         appointmentId,
       });
     } else {
@@ -213,6 +226,7 @@ export async function getPrescriptions(options?: { page?: number; size?: number 
           doctor,
           expires: "—",
           status: "ready",
+          orderedAt: orderedAtFormatted,
           appointmentId,
         });
       }

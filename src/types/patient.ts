@@ -104,6 +104,8 @@ export interface PrescriptionRow {
   doctor: string;
   expires: string;
   status: string;
+  /** Date the prescription was ordered (visit date). ISO date string or formatted. */
+  orderedAt?: string | null;
   /** Appointment this prescription was added in; link to view that visit. */
   appointmentId?: string | null;
 }
