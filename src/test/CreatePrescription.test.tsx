@@ -32,7 +32,7 @@ describe("CreatePrescription", () => {
       </MemoryRouter>
     );
     expect(
-      await screen.findByText(/invalid link/i)
+      await screen.findByText(/cannot create prescription/i)
     ).toBeInTheDocument();
     expect(screen.getByText(/prescriptions are created from an appointment/i)).toBeInTheDocument();
   });
@@ -44,7 +44,7 @@ describe("CreatePrescription", () => {
       </MemoryRouter>
     );
     expect(
-      await screen.findByText(/invalid link/i)
+      await screen.findByText(/cannot create prescription/i)
     ).toBeInTheDocument();
   });
 

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import ConfirmBooking from "../components/booking/ConfirmBooking";
 
 const mockDoctor = {
@@ -58,13 +58,13 @@ describe("ConfirmBooking", () => {
     expect(onBack).toHaveBeenCalledTimes(1);
   });
 
-  it("calls onConfirm when Confirm Booking is clicked", () => {
+  it("calls onConfirm when Confirm Booking is clicked", async () => {
     const onConfirm = vi.fn();
     render(
       <ConfirmBooking
         doctor={mockDoctor}
         date="Feb 15, 2025"
-        slot={null}
+        slot={{ scheduleId: "s1", slotIndex: 0, start: "2025-02-15T09:00:00", end: "2025-02-15T09:30:00" }}
         reasonForVisit=""
         onReasonChange={vi.fn()}
         onConfirm={onConfirm}
@@ -72,6 +72,7 @@ describe("ConfirmBooking", () => {
       />
     );
     fireEvent.click(screen.getByRole("button", { name: /confirm booking/i }));
-    expect(onConfirm).toHaveBeenCalledTimes(1);
+    await waitFor(() => expect(onConfirm).toHaveBeenCalledTimes(1));
+    expect(onConfirm).toHaveBeenCalledWith("");
   });
 });

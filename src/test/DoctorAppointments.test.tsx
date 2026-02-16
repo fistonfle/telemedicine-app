@@ -60,11 +60,11 @@ describe("DoctorAppointments", () => {
 
   it("renders table headers for Date & Time, Patient, Slot, Status, Actions", () => {
     renderDoctorAppointments();
-    expect(screen.getByText(/date & time/i)).toBeInTheDocument();
-    expect(screen.getByText(/patient/i)).toBeInTheDocument();
-    expect(screen.getByText(/slot/i)).toBeInTheDocument();
-    expect(screen.getByText(/status/i)).toBeInTheDocument();
-    expect(screen.getByText(/actions/i)).toBeInTheDocument();
+    expect(screen.getByRole("columnheader", { name: /date & time/i })).toBeInTheDocument();
+    expect(screen.getByRole("columnheader", { name: /patient/i })).toBeInTheDocument();
+    expect(screen.getByRole("columnheader", { name: /slot/i })).toBeInTheDocument();
+    expect(screen.getByRole("columnheader", { name: /status/i })).toBeInTheDocument();
+    expect(screen.getByRole("columnheader", { name: /actions/i })).toBeInTheDocument();
   });
 
   it("shows empty state when no appointments", () => {

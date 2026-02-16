@@ -27,7 +27,7 @@ function renderDoctorRegistration() {
 describe("DoctorRegistration", () => {
   it("renders Telemed branding", () => {
     renderDoctorRegistration();
-    expect(screen.getByText(/telemed/i)).toBeInTheDocument();
+    expect(screen.getAllByText(/telemed/i).length).toBeGreaterThan(0);
   });
 
   it("renders link back to role selection", () => {
@@ -39,7 +39,7 @@ describe("DoctorRegistration", () => {
 
   it("renders Medical details step", () => {
     renderDoctorRegistration();
-    expect(screen.getByText(/medical details/i)).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: /medical details/i })).toBeInTheDocument();
   });
 
   it("renders Create Account or Next button", () => {
