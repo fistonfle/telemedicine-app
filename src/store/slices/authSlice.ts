@@ -128,8 +128,12 @@ const authSlice = createSlice({
         state.user = action.payload;
         state.isAuthenticated = !!action.payload || !!getStoredToken();
         const user = action.payload as { profiles?: { id: string }[] } | null;
-        if (user?.profiles?.length === 1 && !getStoredActiveProfileId()) {
-          setStoredActiveProfileId(user.profiles[0].id);
+        const profiles = user?.profiles ?? [];
+        if (profiles.length === 0) return;
+        const storedId = getStoredActiveProfileId();
+        const validStored = storedId && profiles.some((p) => p.id === storedId);
+        if (!validStored) {
+          setStoredActiveProfileId(profiles[0].id);
         }
       })
       .addCase(fetchMe.rejected, (state, action) => {
