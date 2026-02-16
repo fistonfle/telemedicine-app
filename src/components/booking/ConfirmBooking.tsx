@@ -1,5 +1,11 @@
 import React from "react";
+import { Formik, Form, Field } from "formik";
+import * as Yup from "yup";
 import type { Doctor, TimeSlot } from "../../types";
+
+const confirmSchema = Yup.object({
+  reasonForVisit: Yup.string().max(500, "Reason must be 500 characters or less"),
+});
 
 function formatSlotLabel(slot: TimeSlot | null): string {
   if (!slot) return "";
@@ -22,7 +28,7 @@ interface ConfirmBookingProps {
   slot: TimeSlot | null;
   reasonForVisit: string;
   onReasonChange: (value: string) => void;
-  onConfirm: () => void;
+  onConfirm: (reason: string) => void;
   onBack: () => void;
   submitting?: boolean;
 }
@@ -67,50 +73,65 @@ function ConfirmBooking({
         </div>
       </div>
 
-      {/* Reason for Visit */}
-      <div className="mb-4">
-        <label className="block text-sm font-semibold text-slate-700 mb-2">
-          Reason for Visit (Optional)
-        </label>
-        <textarea
-          value={reasonForVisit}
-          onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => onReasonChange(e.target.value)}
-          placeholder="Please describe briefly any symptoms or specific health concerns"
-          rows={3}
-          className="w-full px-4 py-3 border border-slate-200 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary outline-none resize-none"
-        />
-      </div>
+      <Formik
+        initialValues={{ reasonForVisit }}
+        validationSchema={confirmSchema}
+        enableReinitialize
+        onSubmit={(values) => onConfirm(values.reasonForVisit)}
+      >
+        {({ errors, touched, setFieldValue }) => (
+          <Form>
+            <div className="mb-4">
+              <label className="block text-sm font-semibold text-slate-700 mb-2">
+                Reason for Visit (Optional)
+              </label>
+              <Field
+                as="textarea"
+                name="reasonForVisit"
+                placeholder="Please describe briefly any symptoms or specific health concerns"
+                rows={3}
+                onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => {
+                  setFieldValue("reasonForVisit", e.target.value);
+                  onReasonChange(e.target.value);
+                }}
+                className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-primary focus:border-primary outline-none resize-none ${
+                  touched.reasonForVisit && errors.reasonForVisit ? "border-red-500" : "border-slate-200"
+                }`}
+              />
+              {touched.reasonForVisit && errors.reasonForVisit && (
+                <p className="mt-1 text-sm text-red-600">{errors.reasonForVisit}</p>
+              )}
+            </div>
 
-      {/* Info Box */}
-      <div className="flex gap-3 p-4 bg-primary/5 border border-primary/20 rounded-lg mb-6">
-        <span className="material-icons text-primary shrink-0">info</span>
-        <p className="text-sm text-slate-700">
-          You will receive a reminder before your appointment. You can cancel or
-          reschedule up to 24 hours in advance.
-        </p>
-      </div>
+            {/* Info Box */}
+            <div className="flex gap-3 p-4 bg-primary/5 border border-primary/20 rounded-lg mb-6">
+              <span className="material-icons text-primary shrink-0">info</span>
+              <p className="text-sm text-slate-700">
+                You will receive a reminder before your appointment. You can cancel or reschedule up to 24 hours in advance.
+              </p>
+            </div>
 
-      {/* Actions */}
-      <div className="flex flex-col-reverse sm:flex-row gap-3 sm:justify-between">
-        <button
-          onClick={onBack}
-          className="text-slate-500 hover:text-slate-700 text-sm font-medium"
-        >
-          Back
-        </button>
-        <button
-          onClick={onConfirm}
-          disabled={submitting}
-          className="inline-flex items-center justify-center gap-2 py-3 px-6 bg-primary text-white font-semibold rounded-lg hover:bg-primary/90 disabled:opacity-70 disabled:cursor-not-allowed"
-        >
-          {submitting ? (
-            <span className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-          ) : (
-            <span className="material-icons text-lg">check_circle</span>
-          )}
-          {submitting ? "Booking..." : "Confirm Booking"}
-        </button>
-      </div>
+            {/* Actions */}
+            <div className="flex flex-col-reverse sm:flex-row gap-3 sm:justify-between">
+              <button type="button" onClick={onBack} className="text-slate-500 hover:text-slate-700 text-sm font-medium">
+                Back
+              </button>
+              <button
+                type="submit"
+                disabled={submitting}
+                className="inline-flex items-center justify-center gap-2 py-3 px-6 bg-primary text-white font-semibold rounded-lg hover:bg-primary/90 disabled:opacity-70 disabled:cursor-not-allowed"
+              >
+                {submitting ? (
+                  <span className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                ) : (
+                  <span className="material-icons text-lg">check_circle</span>
+                )}
+                {submitting ? "Booking..." : "Confirm Booking"}
+              </button>
+            </div>
+          </Form>
+        )}
+      </Formik>
     </div>
   );
 }

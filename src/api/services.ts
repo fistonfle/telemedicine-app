@@ -24,6 +24,7 @@ export {
   getDoctorSchedule,
   updateDoctorSchedule,
   updateAppointmentStatus,
+  scheduleFollowUp,
   getDoctorAppointments,
   getAppointmentDetails,
   getDoctorAppointment,
@@ -34,6 +35,9 @@ export {
   createConsultation,
   getTestsByConsultation,
   addMedicalTest,
+  getMedicationsByConsultation,
+  addPrescriptionMedication,
+  deletePrescriptionMedication,
   updateTestStatus,
   createPrescription,
 } from "./doctorService";

@@ -1,5 +1,5 @@
 import { API_URL } from "./config";
-import { getStoredToken, clearStoredAuth, setStoredToken } from "../store/authStorage";
+import { getStoredToken, clearStoredAuth, setStoredToken, getStoredActiveProfileId } from "../store/authStorage";
 import { refreshTokenRequest } from "./authService";
 
 export interface FetchOptions extends RequestInit {
@@ -14,19 +14,9 @@ function redirectToLogin() {
   window.location.href = "/";
 }
 
-async function readError(res: Response): Promise<{ code?: string; message?: string }> {
-  // Use clone() so we don't consume the original response body (we may need it later)
-  const r = res.clone();
-
-  // Try JSON first
-  const json = (await r.json().catch(() => null)) as null | { error?: string; message?: string };
-  if (json) {
-    return { code: json.error, message: json.message };
-  }
-
-  // Fallback to text (some backends send plain text for 401/403)
-  const text = await r.text().catch(() => "");
-  return { message: text || undefined };
+/** Backend ApiError has message (user-facing) and error (e.g. "Bad Request"). Prefer message. */
+async function getErrorBody(res: Response): Promise<{ message?: string; error?: string }> {
+  return (await res.json().catch(() => ({}))) as { message?: string; error?: string };
 }
 
 export async function fetchApi<T = unknown>(
@@ -35,14 +25,16 @@ export async function fetchApi<T = unknown>(
 ): Promise<T> {
   const url = `${API_URL}${path}`;
   const isAuthCall =
-    path.startsWith("/auth/login") ||
-    path.startsWith("/auth/refresh");
+    path.startsWith("/api/auth/login") ||
+    path.startsWith("/api/auth/refresh");
 
   // build a request function so we can retry easily
   const doFetch = async (accessToken: string | null): Promise<Response> => {
+    const activeProfileId = getStoredActiveProfileId();
     const headers: HeadersInit = {
       ...(options.body ? { "Content-Type": "application/json" } : {}),
       ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+      ...(activeProfileId ? { "X-Active-Profile-Id": activeProfileId } : {}),
       ...options.headers,
     };
 
@@ -54,17 +46,9 @@ export async function fetchApi<T = unknown>(
 
   // If forbidden/unauthorized => attempt refresh (skip for auth endpoints)
   if (!isAuthCall && (res.status === 401 || res.status === 403)) {
-    const { code, message } = await readError(res);
-
-    // Many backends don't return a stable code; also treat "expired" messages as token expiry
-    const looksExpired =
-      code === "TOKEN_EXPIRED" ||
-      (message?.toLowerCase().includes("expired") ?? false) ||
-      (message?.toLowerCase().includes("jwt") ?? false);
-
-    // If we had a token (meaning it was an authenticated call), try refresh once.
-    // Even if the backend doesn't send TOKEN_EXPIRED, a 401 often means the access token is no longer valid.
-    if (initialToken && (looksExpired || res.status === 401)) {
+    const err = await getErrorBody(res);
+    // Backend puts TOKEN_EXPIRED in "error"; use "message" for user-facing text
+    if (err.error === "TOKEN_EXPIRED") {
       try {
         // single-flight refresh: if one is already running, wait for it
         if (!refreshPromise) {
@@ -84,18 +68,28 @@ export async function fetchApi<T = unknown>(
         throw e instanceof Error ? e : new Error("REFRESH_FAILED");
       }
     } else {
-      // not refreshable: treat as real unauthorized/forbidden
-      throw new Error(code || message || "UNAUTHORIZED");
+      throw new Error(err.message || err.error || "UNAUTHORIZED");
     }
   }
 
   if (!res.ok) {
-    const { code, message } = await readError(res);
-    throw new Error(code || message || res.statusText);
+    const err = await getErrorBody(res);
+    throw new Error(err.message || err.error || res.statusText);
   }
 
   // if endpoint returns no content
   if (res.status === 204) return undefined as T;
 
-  return res.json() as Promise<T>;
+  const json = (await res.json()) as T | { status: string; data: unknown; pagination?: unknown };
+  // Backend may return wrapped success: { status: "success", data, pagination? }
+  if (
+    json &&
+    typeof json === "object" &&
+    "status" in json &&
+    (json as { status: string }).status === "success" &&
+    "data" in json
+  ) {
+    return (json as { data: T }).data as T;
+  }
+  return json as T;
 }

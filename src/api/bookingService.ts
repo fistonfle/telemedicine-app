@@ -10,7 +10,7 @@ export interface TimeSlotsResponse {
 
 export async function getDoctors(specialty?: string): Promise<Doctor[]> {
   const q = specialty && specialty !== "all" ? `?specialty=${encodeURIComponent(specialty)}` : "";
-  const list = await fetchApi<Record<string, unknown>[]>(`/api/doctor${q}`);
+  const list = await fetchApi<Record<string, unknown>[]>(`/api/doctors${q}`);
   return (list ?? []).map((d) => ({
     id: d.id,
     name: (d.names as string) ?? (d.name as string) ?? "—",
@@ -28,17 +28,25 @@ export async function getDoctors(specialty?: string): Promise<Doctor[]> {
   }));
 }
 
+/** Format date as ISO yyyy-MM-dd for the API (backend expects LocalDate). */
+function toISODateString(date: Date | string): string {
+  const d = typeof date === "string" ? new Date(date) : date;
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
 export async function getTimeSlots(
   doctorId: string | number,
   date: Date | string
 ): Promise<TimeSlotsResponse> {
-  const dateStr =
-    typeof date === "string" ? date : new Date(date).toISOString().split("T")[0] ?? String(date);
+  const dateStr = toISODateString(date);
   const res = await fetchApi<{
     slots?: Record<string, unknown>[];
     dayStart?: string;
     dayEnd?: string;
-  }>(`/api/doctor/${doctorId}/slots?date=${dateStr}`);
+  }>(`/api/doctors/${doctorId}/slots?date=${dateStr}`);
   const list = res?.slots ?? [];
   const mapped = list.map((s, idx) => ({
     ...s,

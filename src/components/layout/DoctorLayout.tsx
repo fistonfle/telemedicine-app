@@ -2,21 +2,52 @@ import { useEffect } from "react";
 import { NavLink, Outlet, useNavigate } from "react-router-dom";
 import { fetchMe, logout } from "../../store/slices/authSlice";
 import { useAppDispatch, useAppSelector } from "../../store";
+import { getStoredActiveProfileId, setStoredActiveProfileId } from "../../store/authStorage";
+import * as authService from "../../api/authService";
+import { useToast } from "../ui/Toast";
 
 export default function DoctorLayout() {
   const navigate = useNavigate();
   const dispatch = useAppDispatch();
+  const toast = useToast();
   const me = useAppSelector((s) => s.auth.user);
+  const profiles = me?.profiles ?? [];
+  const patientProfile = profiles.find((p) => p.role === "PATIENT");
+  const hasPatientProfile = !!patientProfile;
 
   useEffect(() => {
     dispatch(fetchMe());
   }, [dispatch]);
 
+  const activeProfileId = getStoredActiveProfileId();
+  const activeProfile = activeProfileId ? profiles.find((p) => p.id === activeProfileId) : profiles[0];
   useEffect(() => {
-    if (me?.role === "PATIENT") {
-      navigate("/patient", { replace: true });
+    if (me && activeProfile?.role === "DOCTOR" && activeProfile.approved === false) {
+      navigate("/doctor/pending", { replace: true });
     }
-  }, [me?.role, navigate]);
+  }, [me, activeProfile, navigate]);
+
+  const handleSwitchToPatient = async () => {
+    if (patientProfile) {
+      setStoredActiveProfileId(patientProfile.id);
+      dispatch(fetchMe());
+      navigate("/patient", { replace: true });
+      return;
+    }
+    try {
+      await authService.addProfile({ role: "PATIENT" });
+      await dispatch(fetchMe()).unwrap();
+      const updated = await authService.getMe();
+      const newPatient = updated?.profiles?.find((p) => p.role === "PATIENT");
+      if (newPatient) {
+        setStoredActiveProfileId(newPatient.id);
+        navigate("/patient", { replace: true });
+        toast.success("Patient profile created. Switched to patient view.");
+      }
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Could not create patient profile.");
+    }
+  };
 
   const navItems = [
     { path: "/doctor", icon: "dashboard", label: "Dashboard" },
@@ -72,6 +103,13 @@ export default function DoctorLayout() {
               <p className="text-xs text-slate-500 truncate">Doctor</p>
             </div>
           </div>
+          <button
+            onClick={handleSwitchToPatient}
+            className="flex items-center gap-3 w-full px-3 py-2.5 rounded-lg text-sm font-medium text-sky-600 hover:bg-sky-50 transition-colors"
+          >
+            <span className="material-icons text-xl">person</span>
+            {hasPatientProfile ? "Switch to Patient" : "Also use as Patient"}
+          </button>
           <button
             onClick={() => { dispatch(logout()); navigate("/"); }}
             className="flex items-center gap-3 w-full px-3 py-2.5 rounded-lg text-sm font-medium text-slate-600 hover:bg-slate-100 transition-colors"

@@ -1,5 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useNavigate, Link, useSearchParams } from "react-router-dom";
+import { Formik, Form, Field } from "formik";
+import * as Yup from "yup";
 import {
   getDoctorAppointment,
   getAppointmentDetails,
@@ -8,11 +10,17 @@ import {
   createConsultation,
   getTestsByConsultation,
   addMedicalTest,
+  addPrescriptionMedication,
+  deletePrescriptionMedication,
   updateTestStatus,
   updateAppointmentStatus,
+  getProfile,
+  getTimeSlots,
+  scheduleFollowUp,
 } from "../api/services";
 import type { AppointmentDetails } from "../api/doctorService";
 import type { DoctorAppointment } from "../types";
+import type { TimeSlot } from "../types/booking";
 import { useToast } from "../components/ui/Toast";
 import Badge from "../components/ui/Badge";
 
@@ -28,6 +36,30 @@ const FREQUENCY_OPTIONS = [
   { value: "WEEKLY", label: "Weekly" },
   { value: "OTHER", label: "Other" },
 ];
+
+const medicationSchema = Yup.object({
+  medication: Yup.string().trim().required("Medication name is required"),
+  dosageAmount: Yup.string().trim().required("Dosage amount is required"),
+  frequencyOther: Yup.string().when("frequency", {
+    is: "OTHER",
+    then: (s) => s.required("Specify custom frequency"),
+    otherwise: (s) => s.optional(),
+  }),
+});
+
+const testSchema = Yup.object({
+  name: Yup.string().trim().required("Test name is required"),
+});
+
+const consultationSchema = Yup.object({
+  requiresLabTest: Yup.boolean().nullable().required("Please indicate whether the next step requires lab tests"),
+  labResultsSameDay: Yup.boolean().nullable(),
+  labRequiresFollowUp: Yup.boolean().nullable(),
+}).test("labOptions", "Please indicate when results will be ready: same day, follow-up, or both.", function () {
+  const { requiresLabTest, labResultsSameDay, labRequiresFollowUp } = this.parent as { requiresLabTest: boolean | null; labResultsSameDay: boolean | null; labRequiresFollowUp: boolean | null };
+  if (requiresLabTest !== true) return true;
+  return labResultsSameDay === true || labRequiresFollowUp === true;
+});
 
 const DOSAGE_UNITS = [
   { value: "mg", label: "mg" },
@@ -70,20 +102,8 @@ function CreatePrescription() {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [consultationForm, setConsultationForm] = useState<{
-    diagnosis: string; notes: string; temperature: string; weight: string; height: string;
-    bloodPressureSystolic: string; bloodPressureDiastolic: string;
-    heartRate: string; respiratoryRate: string; oxygenSaturation: string;
-    requiresLabTest: boolean | null; labResultsSameDay: boolean | null; labRequiresFollowUp: boolean | null;
-  }>({
-    diagnosis: "", notes: "", temperature: "", weight: "", height: "",
-    bloodPressureSystolic: "", bloodPressureDiastolic: "",
-    heartRate: "", respiratoryRate: "", oxygenSaturation: "",
-    requiresLabTest: null, labResultsSameDay: null, labRequiresFollowUp: null,
-  });
   const [testForm, setTestForm] = useState({ name: "", description: "" });
   const [showTestForm, setShowTestForm] = useState(false);
-  const [medications, setMedications] = useState<{ medication?: string; dosageAmount?: string; dosageUnit?: string; dosageOther?: string; frequency?: string; frequencyOther?: string; instructions?: string; refills?: number; expiresIn?: number }[]>([]);
   const [showMedicationForm, setShowMedicationForm] = useState(false);
   const [medicationForm, setMedicationForm] = useState({
     medication: "",
@@ -99,6 +119,13 @@ function CreatePrescription() {
   const [form, setForm] = useState({
     patientId: patientIdParam || "",
   });
+  const [doctorProfileId, setDoctorProfileId] = useState<string | null>(null);
+  const [followUpDate, setFollowUpDate] = useState("");
+  const [followUpSlots, setFollowUpSlots] = useState<TimeSlot[]>([]);
+  const [selectedFollowUpSlot, setSelectedFollowUpSlot] = useState<TimeSlot | null>(null);
+  const [followUpSlotsLoading, setFollowUpSlotsLoading] = useState(false);
+  const [followUpScheduling, setFollowUpScheduling] = useState(false);
+  const [updatingTestId, setUpdatingTestId] = useState<string | null>(null);
 
   const loadDetails = useCallback(async () => {
     if (!appointmentId) return;
@@ -165,8 +192,68 @@ function CreatePrescription() {
     loadTests();
   }, [consultation?.id, loadTests]);
 
-  const handleAddMedication = (e: React.FormEvent) => {
+  const needsFollowUp = !!(
+    details?.consultation?.labRequiresFollowUp ||
+    (details?.tests ?? []).some((t) => t.status === "FOLLOW_UP_NEEDED")
+  );
+  useEffect(() => {
+    if (!needsFollowUp || doctorProfileId) return;
+    getProfile()
+      .then((p) => {
+        const id = (p as { profileId?: string })?.profileId ?? (p as { id?: string })?.id;
+        if (id) setDoctorProfileId(String(id));
+      })
+      .catch(() => {});
+  }, [needsFollowUp, doctorProfileId]);
+
+  useEffect(() => {
+    if (!followUpDate || !doctorProfileId) {
+      setFollowUpSlots([]);
+      setSelectedFollowUpSlot(null);
+      return;
+    }
+    setFollowUpSlotsLoading(true);
+    getTimeSlots(doctorProfileId, followUpDate)
+      .then((res) => setFollowUpSlots(res.slots ?? []))
+      .catch(() => setFollowUpSlots([]))
+      .finally(() => setFollowUpSlotsLoading(false));
+    setSelectedFollowUpSlot(null);
+  }, [followUpDate, doctorProfileId]);
+
+  const handleScheduleFollowUp = async () => {
+    const patientId = details?.appointment?.patientId;
+    if (!patientId || !selectedFollowUpSlot?.scheduleId || !selectedFollowUpSlot?.start) {
+      toast.error("Select a date and time slot.");
+      return;
+    }
+    setFollowUpScheduling(true);
+    setError(null);
+    try {
+      await scheduleFollowUp({
+        patientId,
+        scheduleId: String(selectedFollowUpSlot.scheduleId),
+        appointmentDate: selectedFollowUpSlot.start,
+        sourceAppointmentId: appointmentId ?? undefined,
+      });
+      toast.success("Follow-up appointment scheduled.");
+      setFollowUpDate("");
+      setFollowUpSlots([]);
+      setSelectedFollowUpSlot(null);
+      loadDetails();
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Failed to schedule follow-up.";
+      setError(msg);
+      toast.error(msg);
+    } finally {
+      setFollowUpScheduling(false);
+    }
+  };
+
+  const medications = details?.medications ?? [];
+
+  const handleAddMedication = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!consultation?.id) return;
     const hasDosage = medicationForm.dosageAmount?.trim() || (medicationForm.dosageUnit === "OTHER" && medicationForm.dosageOther?.trim());
     const hasFreq = medicationForm.frequency !== "OTHER" || medicationForm.frequencyOther?.trim();
     if (!medicationForm.medication?.trim() || !hasDosage || !hasFreq) {
@@ -174,59 +261,85 @@ function CreatePrescription() {
       return;
     }
     setError(null);
-    setMedications((prev) => [...prev, { ...medicationForm }]);
-    setShowMedicationForm(false);
-    setMedicationForm({
-      medication: "",
-      dosageAmount: "",
-      dosageUnit: "mg",
-      dosageOther: "",
-      frequency: "TWICE_DAILY",
-      frequencyOther: "",
-      instructions: "",
-      refills: 0,
-      expiresIn: 90,
-    });
-    toast.success("Medication added");
+    setSubmitting(true);
+    try {
+      await addPrescriptionMedication(consultation.id, {
+        medication: medicationForm.medication.trim(),
+        dosageAmount: medicationForm.dosageAmount,
+        dosageUnit: medicationForm.dosageUnit,
+        dosageOther: medicationForm.dosageOther,
+        frequency: medicationForm.frequency,
+        frequencyOther: medicationForm.frequencyOther,
+        instructions: medicationForm.instructions,
+        refills: medicationForm.refills ?? 0,
+        expiresIn: medicationForm.expiresIn ?? 90,
+      });
+      setShowMedicationForm(false);
+      setMedicationForm({
+        medication: "",
+        dosageAmount: "",
+        dosageUnit: "mg",
+        dosageOther: "",
+        frequency: "TWICE_DAILY",
+        frequencyOther: "",
+        instructions: "",
+        refills: 0,
+        expiresIn: 90,
+      });
+      const d = await getAppointmentDetails(appointmentId!).catch(() => null);
+      if (d) setDetails(d);
+      toast.success("Medication added");
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Failed to add medication";
+      setError(msg);
+      toast.error(msg);
+    } finally {
+      setSubmitting(false);
+    }
   };
-  const removeMedication = (index: number) => setMedications((prev) => prev.filter((_, i) => i !== index));
 
-  const handleCreateConsultation = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleRemoveMedication = async (med: { id?: string }) => {
+    if (!consultation?.id || !med.id) return;
+    setError(null);
+    try {
+      await deletePrescriptionMedication(consultation.id, med.id);
+      const d = await getAppointmentDetails(appointmentId!).catch(() => null);
+      if (d) setDetails(d);
+      toast.success("Medication removed");
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Failed to remove medication";
+      toast.error(msg);
+    }
+  };
+
+  const handleCreateConsultation = async (values: {
+    diagnosis: string; notes: string; temperature: string; weight: string; height: string;
+    bloodPressureSystolic: string; bloodPressureDiastolic: string;
+    heartRate: string; respiratoryRate: string; oxygenSaturation: string;
+    requiresLabTest: boolean | null; labResultsSameDay: boolean | null; labRequiresFollowUp: boolean | null;
+  }) => {
     if (!appointmentId) {
       setError("Invalid appointment. Missing appointment ID.");
       return;
-    }
-    if (consultationForm.requiresLabTest === null) {
-      setError("Please indicate whether the next step requires lab tests.");
-      return;
-    }
-    if (consultationForm.requiresLabTest === true) {
-      const hasSameDay = consultationForm.labResultsSameDay === true;
-      const hasFollowUp = consultationForm.labRequiresFollowUp === true;
-      if (!hasSameDay && !hasFollowUp) {
-        setError("Please indicate when results will be ready: same day, follow-up, or both.");
-        return;
-      }
     }
     setError(null);
     setSubmitting(true);
     try {
       const c = await createConsultation({
         appointmentId,
-        diagnosis: consultationForm.diagnosis || "Consultation",
-        notes: consultationForm.notes || undefined,
-        temperatureCelsius: consultationForm.temperature || undefined,
-        weightKg: consultationForm.weight || undefined,
-        heightCm: consultationForm.height || undefined,
-        bloodPressureSystolic: consultationForm.bloodPressureSystolic || undefined,
-        bloodPressureDiastolic: consultationForm.bloodPressureDiastolic || undefined,
-        heartRateBpm: consultationForm.heartRate || undefined,
-        respiratoryRatePerMin: consultationForm.respiratoryRate || undefined,
-        oxygenSaturation: consultationForm.oxygenSaturation || undefined,
-        requiresLabTest: consultationForm.requiresLabTest === true,
-        labResultsSameDay: consultationForm.requiresLabTest ? (consultationForm.labResultsSameDay === true ? "true" : null) : null,
-        labRequiresFollowUp: consultationForm.requiresLabTest ? (consultationForm.labRequiresFollowUp === true ? "true" : null) : null,
+        diagnosis: values.diagnosis || "Consultation",
+        notes: values.notes || undefined,
+        temperatureCelsius: values.temperature || undefined,
+        weightKg: values.weight || undefined,
+        heightCm: values.height || undefined,
+        bloodPressureSystolic: values.bloodPressureSystolic || undefined,
+        bloodPressureDiastolic: values.bloodPressureDiastolic || undefined,
+        heartRateBpm: values.heartRate || undefined,
+        respiratoryRatePerMin: values.respiratoryRate || undefined,
+        oxygenSaturation: values.oxygenSaturation || undefined,
+        requiresLabTest: values.requiresLabTest === true,
+        labResultsSameDay: values.requiresLabTest ? (values.labResultsSameDay === true ? "true" : null) : null,
+        labRequiresFollowUp: values.requiresLabTest ? (values.labRequiresFollowUp === true ? "true" : null) : null,
       });
       setConsultation(c as { id?: string; requiresLabTest?: boolean });
       const d = await getAppointmentDetails(appointmentId).catch(() => null);
@@ -264,6 +377,7 @@ function CreatePrescription() {
   const handleCancelTest = async (testId: string) => {
     if (!appointmentId || !consultation?.id) return;
     setError(null);
+    setUpdatingTestId(testId);
     try {
       await updateTestStatus(testId, "CANCELLED");
       await loadTests();
@@ -274,12 +388,15 @@ function CreatePrescription() {
       const msg = err instanceof Error ? err.message : "Failed to cancel test";
       setError(msg);
       toast.error(msg);
+    } finally {
+      setUpdatingTestId(null);
     }
   };
 
   const handleUpdateTestStatus = async (testId: string, status: string) => {
     if (!appointmentId || !consultation?.id) return;
     setError(null);
+    setUpdatingTestId(testId);
     try {
       await updateTestStatus(testId, status);
       await loadTests();
@@ -290,6 +407,8 @@ function CreatePrescription() {
       const msg = err instanceof Error ? err.message : "Failed to update test";
       setError(msg);
       toast.error(msg);
+    } finally {
+      setUpdatingTestId(null);
     }
   };
 
@@ -317,7 +436,7 @@ function CreatePrescription() {
 
   const handleCreatePrescription = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!appointmentId || !patientIdParam || !consultation || tests.length < 1) return;
+    if (!appointmentId || !patientIdParam || !consultation) return;
     if (medications.length === 0) {
       setError("Add at least one medication before creating the prescription.");
       return;
@@ -325,23 +444,11 @@ function CreatePrescription() {
     setError(null);
     setSubmitting(true);
     try {
-      const medParts = medications.map((m) => {
-        const dosage = formatDosage(m);
-        const frequency = formatFrequency(m);
-        const p = [`${m.medication}`, dosage, frequency, m.instructions].filter(Boolean);
-        let line = p.join(" — ");
-        const extra: string[] = [];
-        if ((m.refills ?? 0) > 0) extra.push(`${m.refills} refills`);
-        if ((m.expiresIn ?? 0) > 0) extra.push(`valid ${m.expiresIn} days`);
-        if (extra.length) line += ` (${extra.join(", ")})`;
-        return line;
-      });
-      const note = medParts.join("\n");
       await createPrescription({
         appointmentId,
         patientId: patientIdParam,
         diagnosis: medications[0]?.medication ?? "Prescription",
-        note,
+        note: "", // backend builds note from saved medications
       });
       toast.success("Prescription created successfully");
       navigate("/doctor");
@@ -389,9 +496,9 @@ function CreatePrescription() {
   const isApproved = statusLower === "approved";
   const activeTests = tests.filter((t) => t.status !== "CANCELLED");
   const hasPrescription = !!details?.prescription;
-  const canWritePrescription = !isClosed && consultation && activeTests.length >= 1 && !hasPrescription;
-  const canAddPrescription = !isClosed && consultation && activeTests.length >= 1;
-  const pageTitle = isClosed ? "Appointment (closed)" : !consultation ? "Create consultation" : !canAddPrescription ? "Add tests" : hasPrescription ? "Prescription" : "Create prescription";
+  const canWritePrescription = !isClosed && consultation && !hasPrescription;
+  const canAddPrescription = !isClosed && consultation;
+  const pageTitle = isClosed ? "Appointment (closed)" : !consultation ? "Create consultation" : hasPrescription ? "Prescription" : "Create prescription";
 
   return (
     <div className="p-8 max-w-2xl">
@@ -404,19 +511,42 @@ function CreatePrescription() {
           Back to Dashboard
         </Link>
         <h1 className="text-3xl font-bold text-slate-900">{pageTitle}</h1>
-        <p className="text-slate-500 mt-1">
+        <p className="text-slate-500 mt-1 flex flex-wrap items-center gap-2">
           {displayAppointment && <>For <span className="font-medium text-slate-700">{displayAppointment.patient}</span> — Slot {displayAppointment.slot}</>}
+          {details?.parentAppointment && (
+            <span className="inline-flex items-center gap-1 px-2.5 py-1 text-sm font-medium rounded-lg bg-sky-100 text-sky-800">
+              <span className="material-icons text-lg">replay</span>
+              Follow-up visit
+            </span>
+          )}
         </p>
       </div>
 
       {/* Appointment details summary */}
-      {(details?.appointment || details?.consultation || details?.tests?.length || details?.prescription) && (
+      {(details?.appointment || details?.consultation || details?.tests?.length || details?.prescription || details?.scheduledFollowUp || details?.parentAppointment) && (
         <div className="mb-8 p-6 bg-slate-50 border border-slate-200 rounded-xl">
           <h2 className="text-lg font-semibold text-slate-900 mb-4 flex items-center gap-2">
             <span className="material-icons text-primary">info</span>
             Appointment details
           </h2>
           <div className="space-y-4">
+            {details?.parentAppointment && (
+              <div className="pb-2 border-b border-slate-200">
+                <p className="text-sm font-medium text-slate-500 mb-1">Previous visit (parent appointment)</p>
+                <p className="text-slate-800">
+                  {details.parentAppointment.appointmentDate
+                    ? new Date(details.parentAppointment.appointmentDate).toLocaleString("en-GB", { weekday: "short", day: "numeric", month: "short", year: "numeric", hour: "numeric", minute: "2-digit" })
+                    : "—"}
+                  {details.parentAppointment.slot != null && ` · Slot ${details.parentAppointment.slot}`}
+                </p>
+                <Link
+                  to={`/doctor/visit?appointmentId=${details.parentAppointment.id}&patientId=${encodeURIComponent(details?.appointment?.patientId ?? "")}`}
+                  className="text-sm font-medium text-primary hover:underline mt-1 inline-block"
+                >
+                  View previous visit →
+                </Link>
+              </div>
+            )}
             {displayAppointment && (
               <div>
                 <p className="text-sm font-medium text-slate-500">Appointment</p>
@@ -425,19 +555,37 @@ function CreatePrescription() {
                 </p>
                 <div className="flex items-center gap-2 mt-2 flex-wrap">
                   <Badge variant={(displayAppointment.status || "pending").toLowerCase()}>{(displayAppointment.status || "Pending").charAt(0).toUpperCase() + (displayAppointment.status || "pending").slice(1)}</Badge>
-                  {!isClosed && (
+                  {!isClosed && isApproved && (
                     <button
                       type="button"
                       onClick={() => handleUpdateAppointmentStatus("COMPLETED")}
-                      className="text-sm px-3 py-1 rounded-lg bg-emerald-600 text-white hover:bg-emerald-700"
+                      disabled={submitting}
+                      className="text-sm px-3 py-1 rounded-lg bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-60"
                     >
-                      Close appointment
+                      {submitting ? "Updating…" : "Close appointment"}
                     </button>
                   )}
                   {isClosed && (
                     <span className="text-sm text-slate-500">No further actions — appointment is closed</span>
                   )}
                 </div>
+              </div>
+            )}
+            {details?.scheduledFollowUp && (
+              <div className="pt-2 border-t border-slate-200">
+                <p className="text-sm font-medium text-slate-500 mb-1">Next appointment (follow-up scheduled)</p>
+                <p className="text-slate-800">
+                  {details.scheduledFollowUp.appointmentDate
+                    ? new Date(details.scheduledFollowUp.appointmentDate).toLocaleString("en-GB", { weekday: "short", day: "numeric", month: "short", year: "numeric", hour: "numeric", minute: "2-digit" })
+                    : "—"}
+                  {details.scheduledFollowUp.slot != null && ` · Slot ${details.scheduledFollowUp.slot}`}
+                </p>
+                <Link
+                  to={`/doctor/visit?appointmentId=${details.scheduledFollowUp.id}&patientId=${encodeURIComponent(details?.appointment?.patientId ?? "")}`}
+                  className="text-sm font-medium text-primary hover:underline mt-1 inline-block"
+                >
+                  Open follow-up visit →
+                </Link>
               </div>
             )}
             {details?.consultation && (
@@ -514,7 +662,7 @@ function CreatePrescription() {
             disabled={submitting}
             className="px-6 py-2.5 bg-primary text-white font-semibold rounded-lg hover:bg-primary/90 disabled:opacity-60"
           >
-            Approve appointment
+            {submitting ? "Updating…" : "Approve appointment"}
           </button>
         </div>
       )}
@@ -522,141 +670,373 @@ function CreatePrescription() {
         <div className="mb-8 p-6 bg-amber-50 border border-amber-200 rounded-xl">
           <h2 className="text-lg font-semibold text-slate-900 mb-2">1. Create consultation</h2>
           <p className="text-sm text-slate-600 mb-4">Create a consultation record before adding tests and prescribing.</p>
-          <form onSubmit={handleCreateConsultation} className="space-y-4">
-            {error && (
-              <div className="bg-red-50 border border-red-200 rounded-lg p-3 text-red-700 text-sm">{error}</div>
-            )}
-            <p className="text-sm font-medium text-slate-700 mb-3">Vital signs (in-clinic measures)</p>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-              <div>
-                <label className="block text-sm font-semibold text-slate-700 mb-2">Temperature (°C)</label>
-                <input type="number" step="0.1" min="35" max="43" value={consultationForm.temperature}
-                  onChange={(e) => setConsultationForm((p) => ({ ...p, temperature: e.target.value }))}
-                  placeholder="36.5" className="w-full px-4 py-2.5 border border-slate-200 rounded-lg focus:ring-2 focus:ring-primary outline-none" />
-              </div>
-              <div>
-                <label className="block text-sm font-semibold text-slate-700 mb-2">Weight (kg)</label>
-                <input type="number" step="0.1" min="20" max="300" value={consultationForm.weight}
-                  onChange={(e) => setConsultationForm((p) => ({ ...p, weight: e.target.value }))}
-                  placeholder="70" className="w-full px-4 py-2.5 border border-slate-200 rounded-lg focus:ring-2 focus:ring-primary outline-none" />
-              </div>
-              <div>
-                <label className="block text-sm font-semibold text-slate-700 mb-2">Height (cm)</label>
-                <input type="number" step="0.1" min="50" max="250" value={consultationForm.height}
-                  onChange={(e) => setConsultationForm((p) => ({ ...p, height: e.target.value }))}
-                  placeholder="170" className="w-full px-4 py-2.5 border border-slate-200 rounded-lg focus:ring-2 focus:ring-primary outline-none" />
-              </div>
-              <div>
-                <label className="block text-sm font-semibold text-slate-700 mb-2">Blood pressure (mmHg)</label>
-                <div className="flex gap-2">
-                  <input type="number" min="60" max="250" value={consultationForm.bloodPressureSystolic}
-                    onChange={(e) => setConsultationForm((p) => ({ ...p, bloodPressureSystolic: e.target.value }))}
-                    placeholder="120" className="flex-1 px-4 py-2.5 border border-slate-200 rounded-lg focus:ring-2 focus:ring-primary outline-none" />
-                  <span className="self-center text-slate-400">/</span>
-                  <input type="number" min="40" max="150" value={consultationForm.bloodPressureDiastolic}
-                    onChange={(e) => setConsultationForm((p) => ({ ...p, bloodPressureDiastolic: e.target.value }))}
-                    placeholder="80" className="flex-1 px-4 py-2.5 border border-slate-200 rounded-lg focus:ring-2 focus:ring-primary outline-none" />
-                </div>
-              </div>
-              <div>
-                <label className="block text-sm font-semibold text-slate-700 mb-2">Heart rate (bpm)</label>
-                <input type="number" min="30" max="200" value={consultationForm.heartRate}
-                  onChange={(e) => setConsultationForm((p) => ({ ...p, heartRate: e.target.value }))}
-                  placeholder="72" className="w-full px-4 py-2.5 border border-slate-200 rounded-lg focus:ring-2 focus:ring-primary outline-none" />
-              </div>
-              <div>
-                <label className="block text-sm font-semibold text-slate-700 mb-2">Resp. rate (/min)</label>
-                <input type="number" min="8" max="40" value={consultationForm.respiratoryRate}
-                  onChange={(e) => setConsultationForm((p) => ({ ...p, respiratoryRate: e.target.value }))}
-                  placeholder="16" className="w-full px-4 py-2.5 border border-slate-200 rounded-lg focus:ring-2 focus:ring-primary outline-none" />
-              </div>
-              <div>
-                <label className="block text-sm font-semibold text-slate-700 mb-2">SpO₂ (%)</label>
-                <input type="number" min="85" max="100" value={consultationForm.oxygenSaturation}
-                  onChange={(e) => setConsultationForm((p) => ({ ...p, oxygenSaturation: e.target.value }))}
-                  placeholder="98" className="w-full px-4 py-2.5 border border-slate-200 rounded-lg focus:ring-2 focus:ring-primary outline-none" />
-              </div>
-            </div>
-            <div className="pt-2 pb-2">
-              <label className="block text-sm font-semibold text-slate-700 mb-2">Does the next step require lab tests?</label>
-              <p className="text-sm text-slate-600 mb-2">If yes, add lab test orders below. Then indicate when results will be ready.</p>
-              <div className="space-y-2">
-                <div className="flex flex-wrap gap-4">
-                  <label className="flex items-center gap-2 cursor-pointer">
-                    <input type="radio" name="requiresLabTest" checked={consultationForm.requiresLabTest === true}
-                      onChange={() => setConsultationForm((p) => ({ ...p, requiresLabTest: true, labResultsSameDay: null, labRequiresFollowUp: null }))}
-                      className="rounded-full border-slate-300 text-primary focus:ring-primary" />
-                    <span>Yes — lab tests needed</span>
-                  </label>
-                  <label className="flex items-center gap-2 cursor-pointer">
-                    <input type="radio" name="requiresLabTest" checked={consultationForm.requiresLabTest === false}
-                      onChange={() => setConsultationForm((p) => ({ ...p, requiresLabTest: false, labResultsSameDay: null, labRequiresFollowUp: null }))}
-                      className="rounded-full border-slate-300 text-primary focus:ring-primary" />
-                    <span>No — proceed to prescription</span>
-                  </label>
-                </div>
-                {consultationForm.requiresLabTest === true && (
-                  <div className="ml-6 mt-3 p-3 bg-slate-50 rounded-lg border border-slate-200">
-                    <p className="text-sm font-medium text-slate-700 mb-2">When will results be ready? (select all that apply)</p>
-                    <div className="flex flex-col gap-2">
-                      <label className="flex items-center gap-2 cursor-pointer">
-                        <input type="checkbox" checked={consultationForm.labResultsSameDay === true}
-                          onChange={(e) => setConsultationForm((p) => ({ ...p, labResultsSameDay: e.target.checked }))}
-                          className="rounded border-slate-300 text-primary focus:ring-primary" />
-                        <span>Same day — quick tests ready today, no follow-up needed</span>
-                      </label>
-                      <label className="flex items-center gap-2 cursor-pointer">
-                        <input type="checkbox" checked={consultationForm.labRequiresFollowUp === true}
-                          onChange={(e) => setConsultationForm((p) => ({ ...p, labRequiresFollowUp: e.target.checked }))}
-                          className="rounded border-slate-300 text-primary focus:ring-primary" />
-                        <span>Follow-up needed — some tests require patient to return for results</span>
-                      </label>
+          <Formik
+            initialValues={{
+              diagnosis: "", notes: "", temperature: "", weight: "", height: "",
+              bloodPressureSystolic: "", bloodPressureDiastolic: "",
+              heartRate: "", respiratoryRate: "", oxygenSaturation: "",
+              requiresLabTest: null as boolean | null, labResultsSameDay: null as boolean | null, labRequiresFollowUp: null as boolean | null,
+            }}
+            validationSchema={consultationSchema}
+            onSubmit={(values) => handleCreateConsultation(values)}
+          >
+            {({ values, handleSubmit, setFieldValue, errors }) => (
+              <form onSubmit={handleSubmit} className="space-y-4">
+                {error && (
+                  <div className="bg-red-50 border border-red-200 rounded-lg p-3 text-red-700 text-sm">{error}</div>
+                )}
+                {errors.requiresLabTest && (
+                  <div className="text-red-600 text-sm">{errors.requiresLabTest}</div>
+                )}
+                <p className="text-sm font-medium text-slate-700 mb-3">Vital signs (in-clinic measures)</p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                  <div>
+                    <label className="block text-sm font-semibold text-slate-700 mb-2">Temperature (°C)</label>
+                    <Field name="temperature">
+                      {({ field }: { field: { value: string; onChange: (e: React.ChangeEvent<HTMLInputElement>) => void; onBlur: (e: React.FocusEvent<HTMLInputElement>) => void } }) => (
+                        <input {...field} type="number" step="0.1" min="35" max="43"
+                          placeholder="36.5" className="w-full px-4 py-2.5 border border-slate-200 rounded-lg focus:ring-2 focus:ring-primary outline-none" />
+                      )}
+                    </Field>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-semibold text-slate-700 mb-2">Weight (kg)</label>
+                    <Field name="weight">
+                      {({ field }: { field: { value: string; onChange: (e: React.ChangeEvent<HTMLInputElement>) => void; onBlur: (e: React.FocusEvent<HTMLInputElement>) => void } }) => (
+                        <input {...field} type="number" step="0.1" min="20" max="300"
+                          placeholder="70" className="w-full px-4 py-2.5 border border-slate-200 rounded-lg focus:ring-2 focus:ring-primary outline-none" />
+                      )}
+                    </Field>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-semibold text-slate-700 mb-2">Height (cm)</label>
+                    <Field name="height">
+                      {({ field }: { field: { value: string; onChange: (e: React.ChangeEvent<HTMLInputElement>) => void; onBlur: (e: React.FocusEvent<HTMLInputElement>) => void } }) => (
+                        <input {...field} type="number" step="0.1" min="50" max="250"
+                          placeholder="170" className="w-full px-4 py-2.5 border border-slate-200 rounded-lg focus:ring-2 focus:ring-primary outline-none" />
+                      )}
+                    </Field>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-semibold text-slate-700 mb-2">Blood pressure (mmHg)</label>
+                    <div className="flex gap-2">
+                      <Field name="bloodPressureSystolic">
+                        {({ field }: { field: { value: string; onChange: (e: React.ChangeEvent<HTMLInputElement>) => void; onBlur: (e: React.FocusEvent<HTMLInputElement>) => void } }) => (
+                          <input {...field} type="number" min="60" max="250"
+                            placeholder="120" className="flex-1 px-4 py-2.5 border border-slate-200 rounded-lg focus:ring-2 focus:ring-primary outline-none" />
+                        )}
+                      </Field>
+                      <span className="self-center text-slate-400">/</span>
+                      <Field name="bloodPressureDiastolic">
+                        {({ field }: { field: { value: string; onChange: (e: React.ChangeEvent<HTMLInputElement>) => void; onBlur: (e: React.FocusEvent<HTMLInputElement>) => void } }) => (
+                          <input {...field} type="number" min="40" max="150"
+                            placeholder="80" className="flex-1 px-4 py-2.5 border border-slate-200 rounded-lg focus:ring-2 focus:ring-primary outline-none" />
+                        )}
+                      </Field>
                     </div>
                   </div>
-                )}
-              </div>
-            </div>
-            <div>
-              <label className="block text-sm font-semibold text-slate-700 mb-2">Diagnosis (optional)</label>
-              <input
-                type="text"
-                value={consultationForm.diagnosis}
-                onChange={(e) => setConsultationForm((p) => ({ ...p, diagnosis: e.target.value }))}
-                placeholder="e.g. Upper respiratory infection"
-                className="w-full px-4 py-2.5 border border-slate-200 rounded-lg focus:ring-2 focus:ring-primary outline-none"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-semibold text-slate-700 mb-2">Notes (optional)</label>
-              <textarea
-                value={consultationForm.notes}
-                onChange={(e) => setConsultationForm((p) => ({ ...p, notes: e.target.value }))}
-                placeholder="Clinical notes..."
-                rows={2}
-                className="w-full px-4 py-2.5 border border-slate-200 rounded-lg focus:ring-2 focus:ring-primary outline-none resize-none"
-              />
-            </div>
-            <button
-              type="submit"
-              disabled={submitting}
-              className="px-6 py-2.5 bg-primary text-white font-semibold rounded-lg hover:bg-primary/90 disabled:opacity-60"
+                  <div>
+                    <label className="block text-sm font-semibold text-slate-700 mb-2">Heart rate (bpm)</label>
+                    <Field name="heartRate">
+                      {({ field }: { field: { value: string; onChange: (e: React.ChangeEvent<HTMLInputElement>) => void; onBlur: (e: React.FocusEvent<HTMLInputElement>) => void } }) => (
+                        <input {...field} type="number" min="30" max="200"
+                          placeholder="72" className="w-full px-4 py-2.5 border border-slate-200 rounded-lg focus:ring-2 focus:ring-primary outline-none" />
+                      )}
+                    </Field>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-semibold text-slate-700 mb-2">Resp. rate (/min)</label>
+                    <Field name="respiratoryRate">
+                      {({ field }: { field: { value: string; onChange: (e: React.ChangeEvent<HTMLInputElement>) => void; onBlur: (e: React.FocusEvent<HTMLInputElement>) => void } }) => (
+                        <input {...field} type="number" min="8" max="40"
+                          placeholder="16" className="w-full px-4 py-2.5 border border-slate-200 rounded-lg focus:ring-2 focus:ring-primary outline-none" />
+                      )}
+                    </Field>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-semibold text-slate-700 mb-2">SpO₂ (%)</label>
+                    <Field name="oxygenSaturation">
+                      {({ field }: { field: { value: string; onChange: (e: React.ChangeEvent<HTMLInputElement>) => void; onBlur: (e: React.FocusEvent<HTMLInputElement>) => void } }) => (
+                        <input {...field} type="number" min="85" max="100"
+                          placeholder="98" className="w-full px-4 py-2.5 border border-slate-200 rounded-lg focus:ring-2 focus:ring-primary outline-none" />
+                      )}
+                    </Field>
+                  </div>
+                </div>
+                <div className="pt-2 pb-2">
+                  <label className="block text-sm font-semibold text-slate-700 mb-2">Does the next step require lab tests?</label>
+                  <p className="text-sm text-slate-600 mb-2">If yes, add lab test orders below. Then indicate when results will be ready.</p>
+                  <div className="space-y-2">
+                    <div className="flex flex-wrap gap-4">
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <input type="radio" name="requiresLabTest" checked={values.requiresLabTest === true}
+                          onChange={() => { setFieldValue("requiresLabTest", true); setFieldValue("labResultsSameDay", null); setFieldValue("labRequiresFollowUp", null); }}
+                          className="rounded-full border-slate-300 text-primary focus:ring-primary" />
+                        <span>Yes — lab tests needed</span>
+                      </label>
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <input type="radio" name="requiresLabTest" checked={values.requiresLabTest === false}
+                          onChange={() => { setFieldValue("requiresLabTest", false); setFieldValue("labResultsSameDay", null); setFieldValue("labRequiresFollowUp", null); }}
+                          className="rounded-full border-slate-300 text-primary focus:ring-primary" />
+                        <span>No — proceed to prescription</span>
+                      </label>
+                    </div>
+                    {values.requiresLabTest === true && (
+                      <div className="ml-6 mt-3 p-3 bg-slate-50 rounded-lg border border-slate-200">
+                        <p className="text-sm font-medium text-slate-700 mb-2">When will results be ready? (select all that apply)</p>
+                        <div className="flex flex-col gap-2">
+                          <label className="flex items-center gap-2 cursor-pointer">
+                            <input type="checkbox" checked={values.labResultsSameDay === true}
+                              onChange={(e) => setFieldValue("labResultsSameDay", e.target.checked)}
+                              className="rounded border-slate-300 text-primary focus:ring-primary" />
+                            <span>Same day — quick tests ready today, no follow-up needed</span>
+                          </label>
+                          <label className="flex items-center gap-2 cursor-pointer">
+                            <input type="checkbox" checked={values.labRequiresFollowUp === true}
+                              onChange={(e) => setFieldValue("labRequiresFollowUp", e.target.checked)}
+                              className="rounded border-slate-300 text-primary focus:ring-primary" />
+                            <span>Follow-up needed — some tests require patient to return for results</span>
+                          </label>
+                        </div>
+                        {errors.labOptions && (
+                          <div className="text-red-600 text-sm mt-2">{errors.labOptions}</div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold text-slate-700 mb-2">Diagnosis (optional)</label>
+                  <Field
+                    name="diagnosis"
+                    type="text"
+                    placeholder="e.g. Upper respiratory infection"
+                    className="w-full px-4 py-2.5 border border-slate-200 rounded-lg focus:ring-2 focus:ring-primary outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold text-slate-700 mb-2">Notes (optional)</label>
+                  <Field
+                    name="notes"
+                    as="textarea"
+                    placeholder="Clinical notes..."
+                    rows={2}
+                    className="w-full px-4 py-2.5 border border-slate-200 rounded-lg focus:ring-2 focus:ring-primary outline-none resize-none"
+                  />
+                </div>
+                <button
+                  type="submit"
+                  disabled={submitting}
+                  className="px-6 py-2.5 bg-primary text-white font-semibold rounded-lg hover:bg-primary/90 disabled:opacity-60"
             >
               {submitting ? "Creating..." : "Create consultation"}
             </button>
           </form>
+            )}
+          </Formik>
         </div>
       )}
 
-      {/* Step 2: Add tests */}
+      {/* Step 2: Prescription — medications (available with or without tests) */}
+      {consultation && (
+        <div className="mb-8 p-6 bg-slate-50 border border-slate-200 rounded-xl">
+          <h2 className="text-lg font-semibold text-slate-900 mb-2">
+            2. Prescription — medications {medications.length >= 1 && <span className="text-green-600 text-sm font-normal">✓</span>}
+          </h2>
+          <p className="text-sm text-slate-600 mb-4">
+            {hasPrescription
+              ? "You can add or remove medications even after the consultation. The prescription is updated automatically."
+              : "Add medications with or without adding tests (tests are optional, below). Add each medication, then create the prescription."}
+          </p>
+          {error && (
+            <div className="mb-4 bg-red-50 border border-red-200 rounded-lg p-3 text-red-700 text-sm">{error}</div>
+          )}
+          {medications.length > 0 && (
+            <ul className="mb-4 space-y-2">
+              {medications.map((med) => (
+                <li key={med.id ?? med.medication ?? Math.random()} className="flex items-center gap-2 text-slate-700">
+                  <span className="material-icons text-green-600 text-lg">check_circle</span>
+                  <span className="font-medium">{med.medication}</span>
+                  <span className="text-slate-500">— {formatDosage(med)}, {formatFrequency(med)}</span>
+                  {med.instructions && <span className="text-slate-500">({med.instructions})</span>}
+                  <button type="button" onClick={() => handleRemoveMedication(med)} className="ml-auto text-red-600 hover:text-red-700 text-sm">Remove</button>
+                </li>
+              ))}
+            </ul>
+          )}
+          {!showMedicationForm ? (
+            <button
+              type="button"
+              onClick={() => setShowMedicationForm(true)}
+              className="flex items-center gap-2 text-sm font-medium text-primary hover:text-primary/80"
+            >
+              <span className="material-icons text-lg">add_circle</span>
+              Add medication
+            </button>
+          ) : (
+          <Formik
+            initialValues={{
+              medication: "",
+              dosageAmount: "",
+              dosageUnit: "mg",
+              dosageOther: "",
+              frequency: "TWICE_DAILY",
+              frequencyOther: "",
+              instructions: "",
+              refills: 0,
+              expiresIn: 90,
+            }}
+            validationSchema={medicationSchema}
+            onSubmit={async (values) => {
+              if (!consultation?.id || !appointmentId) return;
+              setError(null);
+              setSubmitting(true);
+              try {
+                await addPrescriptionMedication(consultation.id, {
+                  medication: values.medication.trim(),
+                  dosageAmount: values.dosageAmount.trim(),
+                  dosageUnit: values.dosageUnit,
+                  dosageOther: values.dosageUnit === "OTHER" ? values.dosageOther : undefined,
+                  frequency: values.frequency,
+                  frequencyOther: values.frequency === "OTHER" ? values.frequencyOther : undefined,
+                  instructions: values.instructions || undefined,
+                  refills: values.refills ?? 0,
+                  expiresIn: values.expiresIn ?? 90,
+                });
+                setShowMedicationForm(false);
+                const d = await getAppointmentDetails(appointmentId).catch(() => null);
+                if (d) setDetails(d);
+                toast.success("Medication added");
+              } catch (err: unknown) {
+                const msg = err instanceof Error ? err.message : "Failed to add medication";
+                setError(msg);
+                toast.error(msg);
+              } finally {
+                setSubmitting(false);
+              }
+            }}
+          >
+            {({ errors, touched, resetForm }) => (
+            <Form className="space-y-3 p-4 bg-white rounded-lg border border-slate-200">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+              <div>
+                <label className="block text-xs font-medium text-slate-500 mb-1">Name</label>
+                <Field
+                  name="medication"
+                  placeholder="e.g. Amoxicillin"
+                  className={`w-full px-4 py-2.5 border rounded-lg focus:ring-2 focus:ring-primary outline-none ${
+                    touched.medication && errors.medication ? "border-red-500" : "border-slate-200"
+                  }`}
+                />
+                {touched.medication && errors.medication && <p className="mt-0.5 text-xs text-red-600">{errors.medication}</p>}
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-slate-500 mb-1">Dosage — amount</label>
+                <Field
+                  name="dosageAmount"
+                  placeholder="e.g. 500"
+                  className={`w-full px-4 py-2.5 border rounded-lg focus:ring-2 focus:ring-primary outline-none ${
+                    touched.dosageAmount && errors.dosageAmount ? "border-red-500" : "border-slate-200"
+                  }`}
+                />
+                {touched.dosageAmount && errors.dosageAmount && <p className="mt-0.5 text-xs text-red-600">{errors.dosageAmount}</p>}
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-slate-500 mb-1">Dosage — unit</label>
+                <Field as="select" name="dosageUnit" className="w-full px-4 py-2.5 border border-slate-200 rounded-lg focus:ring-2 focus:ring-primary outline-none">
+                  {DOSAGE_UNITS.map((u) => (
+                    <option key={u.value} value={u.value}>{u.label}</option>
+                  ))}
+                </Field>
+              </div>
+              <Field name="dosageUnit">
+                {({ field }: { field: { value: string } }) =>
+                  field.value === "OTHER" && (
+                    <div>
+                      <label className="block text-xs font-medium text-slate-500 mb-1">Custom unit</label>
+                      <Field name="dosageOther" placeholder="e.g. spoonfuls" className="w-full px-4 py-2.5 border border-slate-200 rounded-lg focus:ring-2 focus:ring-primary outline-none" />
+                    </div>
+                  )
+                }
+              </Field>
+              <div>
+                <label className="block text-xs font-medium text-slate-500 mb-1">Frequency</label>
+                <Field as="select" name="frequency" className="w-full px-4 py-2.5 border border-slate-200 rounded-lg focus:ring-2 focus:ring-primary outline-none">
+                  {FREQUENCY_OPTIONS.map((f) => (
+                    <option key={f.value} value={f.value}>{f.label}</option>
+                  ))}
+                </Field>
+              </div>
+              <Field name="frequency">
+                {({ field }: { field: { value: string } }) =>
+                  field.value === "OTHER" && (
+                    <div>
+                      <label className="block text-xs font-medium text-slate-500 mb-1">Custom frequency</label>
+                      <Field
+                        name="frequencyOther"
+                        placeholder="e.g. Every 4 hours"
+                        className={`w-full px-4 py-2.5 border rounded-lg focus:ring-2 focus:ring-primary outline-none ${
+                          touched.frequencyOther && errors.frequencyOther ? "border-red-500" : "border-slate-200"
+                        }`}
+                      />
+                      {touched.frequencyOther && errors.frequencyOther && <p className="mt-0.5 text-xs text-red-600">{errors.frequencyOther}</p>}
+                    </div>
+                  )
+                }
+              </Field>
+              <div className="sm:col-span-2">
+                <label className="block text-xs font-medium text-slate-500 mb-1">Instructions (optional)</label>
+                <Field name="instructions" placeholder="e.g. Take with food" className="w-full px-4 py-2.5 border border-slate-200 rounded-lg focus:ring-2 focus:ring-primary outline-none" />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-slate-500 mb-1">Refills</label>
+                <Field name="refills" type="number" min={0} className="w-full px-4 py-2.5 border border-slate-200 rounded-lg focus:ring-2 focus:ring-primary outline-none" title="0 = one-time fill, 1+ = patient can get refills" />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-slate-500 mb-1">Valid for (days)</label>
+                <Field name="expiresIn" type="number" min={1} className="w-full px-4 py-2.5 border border-slate-200 rounded-lg focus:ring-2 focus:ring-primary outline-none" title="How long the prescription is valid" />
+              </div>
+            </div>
+            <div className="flex gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => { setShowMedicationForm(false); resetForm(); }}
+                className="px-4 py-2.5 border border-slate-200 rounded-lg text-slate-600 hover:bg-slate-50"
+              >
+                Cancel
+              </button>
+              <button type="submit" disabled={submitting} className="px-4 py-2.5 bg-slate-700 text-white font-medium rounded-lg hover:bg-slate-800 disabled:opacity-60">
+                {submitting ? "Adding…" : "Add medication"}
+              </button>
+            </div>
+          </Form>
+            )}
+          </Formik>
+          )}
+          {!hasPrescription && medications.length > 0 && (
+            <form onSubmit={handleCreatePrescription} className="mt-6 pt-4 border-t border-slate-200">
+              <button
+                type="submit"
+                disabled={submitting}
+                className="px-6 py-2.5 bg-primary text-white font-semibold rounded-lg hover:bg-primary/90 disabled:opacity-60"
+              >
+                {submitting ? "Creating…" : "Create prescription"}
+              </button>
+            </form>
+          )}
+        </div>
+      )}
+
+      {/* Step 3: Add tests (optional — medications above do not require tests) */}
       {!isClosed && consultation && (
         <div className="mb-8 p-6 bg-slate-50 border border-slate-200 rounded-xl">
           <h2 className="text-lg font-semibold text-slate-900 mb-2">
-            2. {consultation.requiresLabTest ? "Lab test orders" : "Medical tests"} {activeTests.length >= 1 && <span className="text-green-600 text-sm font-normal">✓</span>}
+            3. {consultation.requiresLabTest ? "Lab test orders" : "Medical tests (optional)"} {activeTests.length >= 1 && <span className="text-green-600 text-sm font-normal">✓</span>}
           </h2>
           <p className="text-sm text-slate-600 mb-4">
             {consultation.requiresLabTest
-              ? "Add lab tests to order. Add each test, then add prescription below — prescribe now; patient may get results same day or return for follow-up."
-              : "Add at least one test, then add prescription (medication) below."}
+              ? "Add lab tests to order. You can already add medications above; add tests here if needed."
+              : "Add tests if needed (optional). Medications above do not require adding any test."}
           </p>
           {tests.length > 0 && (
             <ul className="mb-4 space-y-2">
@@ -674,16 +1054,22 @@ function CreatePrescription() {
                   </Badge>
                   {t.status !== "CANCELLED" && (
                     <div className="flex items-center gap-1">
-                      <select
-                        value={t.status || "ORDERED"}
-                        onChange={(e) => { if (t.id) handleUpdateTestStatus(t.id, e.target.value); }}
-                        className="text-xs border border-slate-200 rounded px-2 py-1"
-                      >
-                        <option value="ORDERED">Ordered</option>
-                        <option value="DONE">Done</option>
-                        <option value="FOLLOW_UP_NEEDED">Needs follow-up</option>
-                      </select>
-                      <button type="button" onClick={() => { if (t.id) handleCancelTest(t.id); }} className="text-red-600 hover:text-red-700 text-sm">Cancel</button>
+                      {updatingTestId === t.id ? (
+                        <span className="text-xs text-slate-500 italic">Updating…</span>
+                      ) : (
+                        <>
+                          <select
+                            value={t.status || "ORDERED"}
+                            onChange={(e) => { if (t.id) handleUpdateTestStatus(t.id, e.target.value); }}
+                            className="text-xs border border-slate-200 rounded px-2 py-1"
+                          >
+                            <option value="ORDERED">Ordered</option>
+                            <option value="DONE">Done</option>
+                            <option value="FOLLOW_UP_NEEDED">Needs follow-up</option>
+                          </select>
+                          <button type="button" onClick={() => { if (t.id) handleCancelTest(t.id); }} className="text-red-600 hover:text-red-700 text-sm">Cancel</button>
+                        </>
+                      )}
                     </div>
                   )}
                 </li>
@@ -700,205 +1086,118 @@ function CreatePrescription() {
               Add test
             </button>
           ) : (
-            <form onSubmit={handleAddTest} className="mt-4 p-4 bg-white rounded-lg border border-slate-200">
+            <Formik
+              initialValues={{ name: "", description: "" }}
+              validationSchema={testSchema}
+              onSubmit={async (values) => {
+                if (!consultation?.id) return;
+                setError(null);
+                setSubmitting(true);
+                try {
+                  await addMedicalTest(consultation.id, { name: values.name.trim(), description: values.description?.trim() || undefined });
+                  setShowTestForm(false);
+                  await loadTests();
+                  toast.success("Test added");
+                } catch (err: unknown) {
+                  const msg = err instanceof Error ? err.message : "Failed to add test";
+                  setError(msg);
+                  toast.error(msg);
+                } finally {
+                  setSubmitting(false);
+                }
+              }}
+            >
+              {({ errors, touched, resetForm }) => (
+              <Form className="mt-4 p-4 bg-white rounded-lg border border-slate-200">
               <div className="flex flex-wrap gap-3">
-                <input
-                  type="text"
-                  value={testForm.name}
-                  onChange={(e) => setTestForm((p) => ({ ...p, name: e.target.value }))}
-                  placeholder={consultation?.requiresLabTest ? "e.g. Full blood count" : "e.g. Blood count"}
-                  required
-                  className="flex-1 min-w-[180px] px-4 py-2.5 border border-slate-200 rounded-lg focus:ring-2 focus:ring-primary outline-none"
-                />
-                <input
-                  type="text"
-                  value={testForm.description}
-                  onChange={(e) => setTestForm((p) => ({ ...p, description: e.target.value }))}
-                  placeholder="Description (optional)"
-                  className="flex-1 min-w-[180px] px-4 py-2.5 border border-slate-200 rounded-lg focus:ring-2 focus:ring-primary outline-none"
-                />
+                <div className="flex-1 min-w-[180px]">
+                  <Field
+                    name="name"
+                    placeholder={consultation?.requiresLabTest ? "e.g. Full blood count" : "e.g. Blood count"}
+                    className={`w-full px-4 py-2.5 border rounded-lg focus:ring-2 focus:ring-primary outline-none ${
+                      touched.name && errors.name ? "border-red-500" : "border-slate-200"
+                    }`}
+                  />
+                  {touched.name && errors.name && <p className="mt-0.5 text-xs text-red-600">{errors.name}</p>}
+                </div>
+                <Field name="description" placeholder="Description (optional)" className="flex-1 min-w-[180px] px-4 py-2.5 border border-slate-200 rounded-lg focus:ring-2 focus:ring-primary outline-none" />
                 <div className="flex gap-2">
                   <button
                     type="button"
-                    onClick={() => { setShowTestForm(false); setTestForm({ name: "", description: "" }); }}
+                    onClick={() => { setShowTestForm(false); resetForm(); }}
                     className="px-4 py-2.5 border border-slate-200 rounded-lg text-slate-600 hover:bg-slate-50"
                   >
                     Cancel
                   </button>
-                  <button
-                    type="submit"
-                    disabled={submitting || !testForm.name?.trim()}
-                    className="px-4 py-2.5 bg-slate-700 text-white font-medium rounded-lg hover:bg-slate-800 disabled:opacity-60"
-                  >
+                  <button type="submit" disabled={submitting} className="px-4 py-2.5 bg-slate-700 text-white font-medium rounded-lg hover:bg-slate-800 disabled:opacity-60">
                     Add test
                   </button>
                 </div>
               </div>
-            </form>
+            </Form>
+              )}
+            </Formik>
           )}
         </div>
       )}
 
-      {/* Step 3: Prescription — add medications one by one (like lab tests) */}
-      {canWritePrescription && (
-        <div className="mb-8 p-6 bg-slate-50 border border-slate-200 rounded-xl">
-          <h2 className="text-lg font-semibold text-slate-900 mb-2">
-            3. Prescription — medications {medications.length >= 1 && <span className="text-green-600 text-sm font-normal">✓</span>}
+      {/* Schedule follow-up when consultation or tests indicate follow-up — below medications */}
+      {needsFollowUp && details?.appointment?.patientId && (
+        <div className="mb-8 p-6 bg-emerald-50 border border-emerald-200 rounded-xl">
+          <h2 className="text-lg font-semibold text-slate-900 mb-4 flex items-center gap-2">
+            <span className="material-icons text-emerald-600">event</span>
+            Schedule follow-up
           </h2>
-          <p className="text-sm text-slate-600 mb-4">
-            Add each medication. You can add as many as needed, then create the prescription.
-          </p>
-          {error && (
-            <div className="mb-4 bg-red-50 border border-red-200 rounded-lg p-3 text-red-700 text-sm">{error}</div>
-          )}
-          {medications.length > 0 && (
-            <ul className="mb-4 space-y-2">
-              {medications.map((med, index) => (
-                <li key={index} className="flex items-center gap-2 text-slate-700">
-                  <span className="material-icons text-green-600 text-lg">check_circle</span>
-                  <span className="font-medium">{med.medication}</span>
-                  <span className="text-slate-500">— {formatDosage(med)}, {formatFrequency(med)}</span>
-                  {med.instructions && <span className="text-slate-500">({med.instructions})</span>}
-                  <button type="button" onClick={() => removeMedication(index)} className="ml-auto text-red-600 hover:text-red-700 text-sm">Remove</button>
-                </li>
-              ))}
-            </ul>
-          )}
-          {!showMedicationForm ? (
-            <button
-              type="button"
-              onClick={() => setShowMedicationForm(true)}
-              className="flex items-center gap-2 text-sm font-medium text-primary hover:text-primary/80"
-            >
-              <span className="material-icons text-lg">add_circle</span>
-              Add medication
-            </button>
-          ) : (
-          <form onSubmit={handleAddMedication} className="space-y-3 p-4 bg-white rounded-lg border border-slate-200">
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-              <div>
-                <label className="block text-xs font-medium text-slate-500 mb-1">Name</label>
-                <input
-                  type="text"
-                  value={medicationForm.medication}
-                  onChange={(e) => setMedicationForm((p) => ({ ...p, medication: e.target.value }))}
-                  placeholder="e.g. Amoxicillin"
-                  className="w-full px-4 py-2.5 border border-slate-200 rounded-lg focus:ring-2 focus:ring-primary outline-none"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-slate-500 mb-1">Dosage — amount</label>
-                <input
-                  type="text"
-                  value={medicationForm.dosageAmount}
-                  onChange={(e) => setMedicationForm((p) => ({ ...p, dosageAmount: e.target.value }))}
-                  placeholder="e.g. 500"
-                  className="w-full px-4 py-2.5 border border-slate-200 rounded-lg focus:ring-2 focus:ring-primary outline-none"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-slate-500 mb-1">Dosage — unit</label>
-                <select
-                  value={medicationForm.dosageUnit}
-                  onChange={(e) => setMedicationForm((p) => ({ ...p, dosageUnit: e.target.value }))}
-                  className="w-full px-4 py-2.5 border border-slate-200 rounded-lg focus:ring-2 focus:ring-primary outline-none"
-                >
-                  {DOSAGE_UNITS.map((u) => (
-                    <option key={u.value} value={u.value}>{u.label}</option>
-                  ))}
-                </select>
-              </div>
-              {medicationForm.dosageUnit === "OTHER" && (
-                <div>
-                  <label className="block text-xs font-medium text-slate-500 mb-1">Custom unit</label>
-                  <input
-                    type="text"
-                    value={medicationForm.dosageOther}
-                    onChange={(e) => setMedicationForm((p) => ({ ...p, dosageOther: e.target.value }))}
-                    placeholder="e.g. spoonfuls"
-                    className="w-full px-4 py-2.5 border border-slate-200 rounded-lg focus:ring-2 focus:ring-primary outline-none"
-                  />
-                </div>
-              )}
-              <div>
-                <label className="block text-xs font-medium text-slate-500 mb-1">Frequency</label>
-                <select
-                  value={medicationForm.frequency}
-                  onChange={(e) => setMedicationForm((p) => ({ ...p, frequency: e.target.value }))}
-                  className="w-full px-4 py-2.5 border border-slate-200 rounded-lg focus:ring-2 focus:ring-primary outline-none"
-                >
-                  {FREQUENCY_OPTIONS.map((f) => (
-                    <option key={f.value} value={f.value}>{f.label}</option>
-                  ))}
-                </select>
-              </div>
-              {medicationForm.frequency === "OTHER" && (
-                <div>
-                  <label className="block text-xs font-medium text-slate-500 mb-1">Custom frequency</label>
-                  <input
-                    type="text"
-                    value={medicationForm.frequencyOther}
-                    onChange={(e) => setMedicationForm((p) => ({ ...p, frequencyOther: e.target.value }))}
-                    placeholder="e.g. Every 4 hours"
-                    className="w-full px-4 py-2.5 border border-slate-200 rounded-lg focus:ring-2 focus:ring-primary outline-none"
-                  />
-                </div>
-              )}
-              <div className="sm:col-span-2">
-                <label className="block text-xs font-medium text-slate-500 mb-1">Instructions (optional)</label>
-                <input
-                  type="text"
-                  value={medicationForm.instructions}
-                  onChange={(e) => setMedicationForm((p) => ({ ...p, instructions: e.target.value }))}
-                  placeholder="e.g. Take with food"
-                  className="w-full px-4 py-2.5 border border-slate-200 rounded-lg focus:ring-2 focus:ring-primary outline-none"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-slate-500 mb-1">Refills</label>
-                <input
-                  type="number"
-                  min={0}
-                  value={medicationForm.refills ?? 0}
-                  onChange={(e) => setMedicationForm((p) => ({ ...p, refills: parseInt(e.target.value) || 0 }))}
-                  className="w-full px-4 py-2.5 border border-slate-200 rounded-lg focus:ring-2 focus:ring-primary outline-none"
-                  title="0 = one-time fill, 1+ = patient can get refills"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-slate-500 mb-1">Valid for (days)</label>
-                <input
-                  type="number"
-                  min={1}
-                  value={medicationForm.expiresIn ?? 90}
-                  onChange={(e) => setMedicationForm((p) => ({ ...p, expiresIn: parseInt(e.target.value) || 90 }))}
-                  className="w-full px-4 py-2.5 border border-slate-200 rounded-lg focus:ring-2 focus:ring-primary outline-none"
-                  title="How long the prescription is valid"
-                />
-              </div>
+          <p className="text-sm text-slate-600 mb-4">Book the next appointment for this patient on your schedule.</p>
+          <div className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1">Date</label>
+              <input
+                type="date"
+                value={followUpDate}
+                onChange={(e) => setFollowUpDate(e.target.value)}
+                min={new Date().toISOString().slice(0, 10)}
+                className="w-full max-w-xs px-4 py-2.5 border border-slate-200 rounded-lg focus:ring-2 focus:ring-primary outline-none"
+              />
             </div>
-            <div className="flex gap-2 pt-2">
+            {followUpDate && (
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-2">Time slot</label>
+                {followUpSlotsLoading ? (
+                  <p className="text-slate-500 text-sm">Loading slots…</p>
+                ) : followUpSlots.length === 0 ? (
+                  <p className="text-slate-500 text-sm">No slots available on this date.</p>
+                ) : (
+                  <div className="flex flex-wrap gap-2">
+                    {followUpSlots.map((slot) => (
+                      <button
+                        key={`${slot.scheduleId}-${slot.start}`}
+                        type="button"
+                        onClick={() => setSelectedFollowUpSlot(slot)}
+                        className={`px-4 py-2 rounded-lg border text-sm font-medium ${
+                          selectedFollowUpSlot === slot
+                            ? "bg-primary text-white border-primary"
+                            : "bg-white text-slate-700 border-slate-200 hover:border-primary hover:bg-primary/5"
+                        }`}
+                      >
+                        {new Date(slot.start).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+            {selectedFollowUpSlot && (
               <button
                 type="button"
-                onClick={() => { setShowMedicationForm(false); setMedicationForm({ medication: "", dosageAmount: "", dosageUnit: "mg", dosageOther: "", frequency: "TWICE_DAILY", frequencyOther: "", instructions: "", refills: 0, expiresIn: 90 }); }}
-                className="px-4 py-2.5 border border-slate-200 rounded-lg text-slate-600 hover:bg-slate-50"
+                onClick={handleScheduleFollowUp}
+                disabled={followUpScheduling}
+                className="px-6 py-2.5 bg-emerald-600 text-white font-semibold rounded-lg hover:bg-emerald-700 disabled:opacity-60"
               >
-                Cancel
+                {followUpScheduling ? "Scheduling…" : "Schedule follow-up"}
               </button>
-              <button
-                type="submit"
-                disabled={
-                  !medicationForm.medication?.trim() ||
-                  !medicationForm.dosageAmount?.trim() ||
-                  (medicationForm.frequency === "OTHER" && !medicationForm.frequencyOther?.trim())
-                }
-                className="px-4 py-2.5 bg-slate-700 text-white font-medium rounded-lg hover:bg-slate-800 disabled:opacity-60"
-              >
-                Add medication
-              </button>
-            </div>
-          </form>
-          )}
+            )}
+          </div>
         </div>
       )}
     </div>
