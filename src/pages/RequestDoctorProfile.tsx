@@ -53,55 +53,93 @@ export default function RequestDoctorProfile() {
     );
   }
 
+  const inputClass =
+    "w-full px-4 py-3 border rounded-lg bg-slate-50 dark:bg-slate-800/50 text-slate-900 dark:text-white focus:ring-2 focus:ring-primary focus:border-transparent outline-none border-slate-200 dark:border-slate-700";
+  const selectClass =
+    "w-full appearance-none rounded-lg border bg-slate-50 dark:bg-slate-800/50 p-3 pr-10 focus:ring-2 focus:ring-primary focus:border-transparent border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white";
+
   return (
     <div className="p-8 max-w-lg">
-      <h1 className="text-2xl font-bold text-slate-900 mb-2">Request doctor profile</h1>
-      <p className="text-slate-500 mb-8">
+      <h1 className="text-2xl font-bold text-slate-900 dark:text-white mb-2">Request doctor profile</h1>
+      <p className="text-slate-500 dark:text-slate-400 mb-8">
         Request to add a doctor profile to your account. An administrator will review and approve your request.
       </p>
-      <form onSubmit={handleSubmit} className="space-y-6 bg-white rounded-xl border border-slate-200 p-6">
-        <div>
-          <label className="block text-sm font-medium text-slate-700 mb-1">Specialty</label>
-          <input
-            type="text"
-            value={specialty}
-            onChange={(e) => setSpecialty(e.target.value)}
-            placeholder="e.g. General Practice"
-            className="w-full px-4 py-2.5 border border-slate-200 rounded-lg focus:ring-2 focus:ring-primary outline-none"
-          />
-        </div>
-        <div>
-          <label className="block text-sm font-medium text-slate-700 mb-1">License number</label>
-          <input
-            type="text"
-            value={licenseNumber}
-            onChange={(e) => setLicenseNumber(e.target.value)}
-            placeholder="Optional"
-            className="w-full px-4 py-2.5 border border-slate-200 rounded-lg focus:ring-2 focus:ring-primary outline-none"
-          />
-        </div>
-        <div>
-          <label className="block text-sm font-medium text-slate-700 mb-1">Practice description</label>
-          <textarea
-            value={practiceDescription}
-            onChange={(e) => setPracticeDescription(e.target.value)}
-            rows={3}
-            placeholder="Optional"
-            className="w-full px-4 py-2.5 border border-slate-200 rounded-lg focus:ring-2 focus:ring-primary outline-none resize-none"
-          />
+      <form onSubmit={handleSubmit} className="space-y-6">
+        <div className="space-y-4">
+          <h3 className="text-sm font-bold uppercase tracking-wider text-slate-400">Medical details</h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="flex flex-col gap-1.5 md:col-span-2">
+              <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300" htmlFor="specialty">
+                Specialty
+              </label>
+              <select
+                id="specialty"
+                value={specialty}
+                onChange={(e) => setSpecialty(e.target.value)}
+                className={selectClass}
+              >
+                <option value="">Select specialty</option>
+                <optgroup label="Primary Care">
+                  <option value="General Practice">General Practice</option>
+                  <option value="Family Medicine">Family Medicine</option>
+                  <option value="Internal Medicine">Internal Medicine</option>
+                </optgroup>
+                <optgroup label="Specialists">
+                  <option value="Cardiology">Cardiology</option>
+                  <option value="Dermatology">Dermatology</option>
+                  <option value="Neurology">Neurology</option>
+                  <option value="Pediatrics">Pediatrics</option>
+                  <option value="Psychiatry">Psychiatry</option>
+                </optgroup>
+                <optgroup label="Surgery">
+                  <option value="General Surgery">General Surgery</option>
+                  <option value="Orthopedic Surgery">Orthopedic Surgery</option>
+                  <option value="Cardiac Surgery">Cardiac Surgery</option>
+                  <option value="Neurosurgery">Neurosurgery</option>
+                  <option value="Plastic Surgery">Plastic Surgery</option>
+                </optgroup>
+              </select>
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300" htmlFor="license">
+                License number
+              </label>
+              <input
+                id="license"
+                type="text"
+                value={licenseNumber}
+                onChange={(e) => setLicenseNumber(e.target.value)}
+                placeholder="e.g. RMDC-12345 (optional)"
+                className={inputClass}
+              />
+            </div>
+            <div className="flex flex-col gap-1.5 md:col-span-2">
+              <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300" htmlFor="practice">
+                Practice description
+              </label>
+              <textarea
+                id="practice"
+                value={practiceDescription}
+                onChange={(e) => setPracticeDescription(e.target.value)}
+                rows={3}
+                placeholder="Briefly describe your practice and services (optional)"
+                className={`${inputClass} resize-none`}
+              />
+            </div>
+          </div>
         </div>
         <div className="flex gap-3">
           <button
             type="submit"
             disabled={submitting}
-            className="px-4 py-2.5 bg-primary text-white rounded-lg font-medium hover:bg-primary/90 disabled:opacity-60"
+            className="px-4 py-3 bg-primary text-white rounded-lg font-semibold hover:bg-primary/90 disabled:opacity-60"
           >
             {submitting ? "Submitting..." : "Submit request"}
           </button>
           <button
             type="button"
             onClick={() => navigate("/patient")}
-            className="px-4 py-2.5 border border-slate-200 rounded-lg text-slate-700 font-medium hover:bg-slate-50"
+            className="px-4 py-3 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-700 dark:text-slate-300 font-medium hover:bg-slate-50 dark:hover:bg-slate-800"
           >
             Cancel
           </button>

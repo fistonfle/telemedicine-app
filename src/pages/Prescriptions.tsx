@@ -130,6 +130,9 @@ function Prescriptions() {
                   Doctor
                 </th>
                 <th className="text-left py-4 px-6 text-xs font-semibold text-slate-500 uppercase tracking-wider">
+                  Date ordered
+                </th>
+                <th className="text-left py-4 px-6 text-xs font-semibold text-slate-500 uppercase tracking-wider">
                   Status
                 </th>
                 <th className="text-left py-4 px-6 text-xs font-semibold text-slate-500 uppercase tracking-wider">
@@ -171,6 +174,9 @@ function Prescriptions() {
                       </div>
                       <span className="text-slate-600">{rx.doctor}</span>
                     </div>
+                  </td>
+                  <td className="py-4 px-6 text-slate-600">
+                    {rx.orderedAt ?? "—"}
                   </td>
                   <td className="py-4 px-6">
                     <Badge variant={rx.status === "ready" ? "approved" : rx.status === "processing" ? "pending" : "completed"}>
