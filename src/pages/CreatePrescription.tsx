@@ -827,11 +827,114 @@ function CreatePrescription() {
         </div>
       )}
 
-      {/* Step 2: Prescription — medications (available with or without tests) */}
+      {/* Step 2 when lab tests needed, else Step 3: Lab test orders / Medical tests (optional) — shown before Prescription when lab tests needed */}
+      {!isClosed && consultation && consultation.requiresLabTest && (
+        <div className="mb-8 p-6 bg-slate-50 border border-slate-200 rounded-xl">
+          <h2 className="text-lg font-semibold text-slate-900 mb-2">
+            2. Lab test orders {activeTests.length >= 1 && <span className="text-green-600 text-sm font-normal">✓</span>}
+          </h2>
+          <p className="text-sm text-slate-600 mb-4">
+            Add lab tests to order. Add medications in the next section.
+          </p>
+          {tests.length > 0 && (
+            <ul className="mb-4 space-y-2">
+              {tests.map((t) => (
+                <li key={t.id} className={`flex items-center gap-2 text-slate-700 ${t.status === "CANCELLED" ? "opacity-60" : ""}`}>
+                  {t.status === "CANCELLED" ? (
+                    <span className="material-icons text-slate-400 text-lg">cancel</span>
+                  ) : (
+                    <span className="material-icons text-green-600 text-lg">check_circle</span>
+                  )}
+                  <span className="font-medium">{t.name}</span>
+                  {t.description && <span className="text-slate-500">— {t.description}</span>}
+                  <Badge variant={t.status === "CANCELLED" ? "cancelled" : (t.status || "ORDERED").toLowerCase()} className="ml-auto">
+                    {t.status === "CANCELLED" ? "Cancelled" : t.status === "DONE" ? "Done" : t.status === "FOLLOW_UP_NEEDED" ? "Needs follow-up" : "Ordered"}
+                  </Badge>
+                  {t.status !== "CANCELLED" && (
+                    <div className="flex items-center gap-1">
+                      {updatingTestId === t.id ? (
+                        <span className="text-xs text-slate-500 italic">Updating…</span>
+                      ) : (
+                        <>
+                          <select
+                            value={t.status || "ORDERED"}
+                            onChange={(e) => { if (t.id) handleUpdateTestStatus(t.id, e.target.value); }}
+                            className="text-xs border border-slate-200 rounded px-2 py-1"
+                          >
+                            <option value="ORDERED">Ordered</option>
+                            <option value="DONE">Done</option>
+                            <option value="FOLLOW_UP_NEEDED">Needs follow-up</option>
+                            <option value="CANCELLED">Cancelled</option>
+                          </select>
+                          <button type="button" onClick={() => { if (t.id) handleCancelTest(t.id); }} className="text-red-600 hover:text-red-700 text-sm">Cancel</button>
+                        </>
+                      )}
+                    </div>
+                  )}
+                </li>
+              ))}
+            </ul>
+          )}
+          {!showTestForm ? (
+            <button
+              type="button"
+              onClick={() => setShowTestForm(true)}
+              className="flex items-center gap-2 text-sm font-medium text-primary hover:text-primary/80"
+            >
+              <span className="material-icons text-lg">add_circle</span>
+              Add test
+            </button>
+          ) : (
+            <Formik
+              initialValues={{ name: "", description: "" }}
+              validationSchema={testSchema}
+              onSubmit={async (values) => {
+                if (!consultation?.id) return;
+                setError(null);
+                setSubmitting(true);
+                try {
+                  await addMedicalTest(consultation.id, values.name.trim(), values.description?.trim() || undefined);
+                  setShowTestForm(false);
+                  await loadTests();
+                  toast.success("Test added");
+                } catch (err: unknown) {
+                  const msg = err instanceof Error ? err.message : "Failed to add test";
+                  setError(msg);
+                  toast.error(msg);
+                } finally {
+                  setSubmitting(false);
+                }
+              }}
+            >
+              {({ errors, touched, resetForm }) => (
+                <Form className="mt-4 p-4 bg-white rounded-lg border border-slate-200">
+                  <div className="flex flex-wrap gap-3">
+                    <div className="flex-1 min-w-[180px]">
+                      <Field
+                        name="name"
+                        placeholder="e.g. Full blood count"
+                        className={`w-full px-4 py-2.5 border rounded-lg focus:ring-2 focus:ring-primary outline-none ${touched.name && errors.name ? "border-red-500" : "border-slate-200"}`}
+                      />
+                      {touched.name && errors.name && <p className="mt-0.5 text-xs text-red-600">{errors.name}</p>}
+                    </div>
+                    <Field name="description" placeholder="Description (optional)" className="flex-1 min-w-[180px] px-4 py-2.5 border border-slate-200 rounded-lg focus:ring-2 focus:ring-primary outline-none" />
+                    <div className="flex gap-2">
+                      <button type="button" onClick={() => { setShowTestForm(false); resetForm(); }} className="px-4 py-2.5 border border-slate-200 rounded-lg text-slate-600 hover:bg-slate-50">Cancel</button>
+                      <button type="submit" disabled={submitting} className="px-4 py-2.5 bg-slate-700 text-white font-medium rounded-lg hover:bg-slate-800 disabled:opacity-60">Add test</button>
+                    </div>
+                  </div>
+                </Form>
+              )}
+            </Formik>
+          )}
+        </div>
+      )}
+
+      {/* Step 2 or 3: Prescription — medications */}
       {consultation && (
         <div className="mb-8 p-6 bg-slate-50 border border-slate-200 rounded-xl">
           <h2 className="text-lg font-semibold text-slate-900 mb-2">
-            2. Prescription — medications {medications.length >= 1 && <span className="text-green-600 text-sm font-normal">✓</span>}
+            {consultation.requiresLabTest ? "3. Prescription — medications" : "2. Prescription — medications"} {medications.length >= 1 && <span className="text-green-600 text-sm font-normal">✓</span>}
           </h2>
           <p className="text-sm text-slate-600 mb-4">
             {hasPrescription
@@ -1017,16 +1120,14 @@ function CreatePrescription() {
         </div>
       )}
 
-      {/* Step 3: Add tests (optional — medications above do not require tests) */}
-      {!isClosed && consultation && (
+      {/* Step 3: Medical tests (optional) — only when lab tests were not required in consultation */}
+      {!isClosed && consultation && !consultation.requiresLabTest && (
         <div className="mb-8 p-6 bg-slate-50 border border-slate-200 rounded-xl">
           <h2 className="text-lg font-semibold text-slate-900 mb-2">
-            3. {consultation.requiresLabTest ? "Lab test orders" : "Medical tests (optional)"} {activeTests.length >= 1 && <span className="text-green-600 text-sm font-normal">✓</span>}
+            3. Medical tests (optional) {activeTests.length >= 1 && <span className="text-green-600 text-sm font-normal">✓</span>}
           </h2>
           <p className="text-sm text-slate-600 mb-4">
-            {consultation.requiresLabTest
-              ? "Add lab tests to order. You can already add medications above; add tests here if needed."
-              : "Add tests if needed (optional). Medications above do not require adding any test."}
+            Add tests if needed (optional). Medications above do not require adding any test.
           </p>
           {tests.length > 0 && (
             <ul className="mb-4 space-y-2">
@@ -1084,7 +1185,7 @@ function CreatePrescription() {
                 setError(null);
                 setSubmitting(true);
                 try {
-                  await addMedicalTest(consultation.id, { name: values.name.trim(), description: values.description?.trim() || undefined });
+                  await addMedicalTest(consultation.id, values.name.trim(), values.description?.trim() || undefined);
                   setShowTestForm(false);
                   await loadTests();
                   toast.success("Test added");
